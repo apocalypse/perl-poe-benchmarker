@@ -635,7 +635,7 @@ POE::Devel::Benchmarker::SubProcess - Implements the actual POE benchmarks
 
 This package is responsible for implementing the guts of the benchmarks, and timing them.
 
-=head2 EXPORT
+=head1 EXPORT
 
 Nothing.
 

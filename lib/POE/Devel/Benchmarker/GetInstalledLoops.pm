@@ -171,13 +171,17 @@ sub Got_CLOSED : State {
 __END__
 =head1 NAME
 
+=head1 SYNOPSIS
+
+	Don't use this module directly. Please use POE::Devel::Benchmarker.
+
 POE::Devel::Benchmarker::GetInstalledLoops - Automatically detects the installed POE loops
 
 =head1 ABSTRACT
 
 This package implements the guts of searching for POE loops via fork/exec.
 
-=head2 EXPORT
+=head1 EXPORT
 
 Automatically exports the getPOEloops() sub
 

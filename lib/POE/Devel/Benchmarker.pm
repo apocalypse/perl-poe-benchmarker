@@ -463,13 +463,15 @@ NOTE: the Benchmarker expects everything to be in the "local" directory!
 	apoc@apoc-x300:~$ cd poe-benchmarker
 	apoc@apoc-x300:~/poe-benchmarker$ perl -MPOE::Devel::Benchmarker -e 'benchmark()'
 
+	( go sleep or something, this will take a while! )
+
 =back
 
 =head2 ANALYZING RESULTS
 
 This part of the documentation is woefully incomplete. Please look at the L<POE::Devel::Benchmarker::Analyzer> module.
 
-=head2 SUBROUTINES
+=head2 BENCHMARKING
 
 This module exposes only one subroutine, the benchmark() one. You can pass a hashref to it to set various options. Here is
 a list of the valid options:
@@ -480,7 +482,7 @@ a list of the valid options:
 
 This enables the "lite" tests which will not take up too much time.
 
-default: false
+default: true
 
 =item quiet => boolean
 
@@ -490,13 +492,21 @@ default: false
 
 =back
 
-=head2 EXPORT
+=head1 EXPORT
 
 Automatically exports the benchmark() subroutine.
 
 =head1 TODO
 
 =over 4
+
+=item write POE::Devel::Benchmarker::Analyzer
+
+I need to finish this module so it will dump YAML structures along the raw output. That way we can easily parse the data
+and use it for nifty stuff like graphs or websites :)
+
+BEWARE: please don't write any tools to analyze the dumps as of now, and give me some more time to complete this, because
+I probably will be tweaking the raw output a little to make the regexes less crazy!
 
 =item Perl version smoking
 
@@ -506,10 +516,10 @@ perl binary. It's smart enough to use $^X to be consistent across tests :)
 
 =item Select the EV backend
 
-<Khisanth> and if you are benchmarking, try it with POE using EV with EV using Glib? :P
-<Apocalypse> I'm not sure how to configure the EV "backend" yet
-<Apocalypse> too much docs for me to read hah
-<Khisanth> Apocalypse: use EV::Glib; use Glib; use POE; :)
+	<Khisanth> and if you are benchmarking, try it with POE using EV with EV using Glib? :P
+	<Apocalypse> I'm not sure how to configure the EV "backend" yet
+	<Apocalypse> too much docs for me to read hah
+	<Khisanth> Apocalypse: use EV::Glib; use Glib; use POE; :)
 
 =item Disable POE::XS::Queue::Array tests if not found
 
@@ -518,7 +528,7 @@ if it isn't installed!
 
 =item Be more smarter in smoking timeouts
 
-Currently we depend on the lite_tests option and hardcode some values including the timeout. If your machine is incredibly
+Currently we depend on the litetests option and hardcode some values including the timeout. If your machine is incredibly
 slow, there's a chance that it could timeout unnecessarily. Please look at the outputs and check to see if there are unusual
 failures, and inform me.
 

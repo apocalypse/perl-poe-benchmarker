@@ -95,7 +95,7 @@ POE::Devel::Benchmarker::Utils - Various utility routines for POE::Devel::Benchm
 
 This package contains the utility routines and constants that POE::Devel::Benchmarker needs.
 
-=head2 EXPORT
+=head1 EXPORT
 
 Automatically exports those subs:
 

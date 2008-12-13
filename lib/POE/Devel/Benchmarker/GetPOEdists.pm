@@ -103,7 +103,7 @@ a true value as the first argument.
 
 	perl -MPOE::Devel::Benchmarker::GetPOEdists -e 'getPOEdists( 1 )'
 
-=head2 EXPORT
+=head1 EXPORT
 
 Automatically exports the getPOEdists() sub
 
