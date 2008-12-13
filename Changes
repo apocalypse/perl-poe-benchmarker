@@ -3,6 +3,8 @@ Revision history for Perl extension POE::Devel::Benchmarker
 * 0.03
 
 	Added the loop option to benchmark(), thanks dngor!
+	More redocumentation
+	Bump Test::More version requirement because some people reported failures with note()
 
 * 0.02
 

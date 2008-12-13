@@ -1,0 +1,75 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use IO::Poll;
+use POE qw( Component::Client::Keepalive Component::Client::HTTP );
+use HTTP::Request;
+
+my $url = "http://localhost/";
+
+POE::Session->create (
+	inline_states => {
+		_start  => \&start,
+		process => \&process,
+		response => \&response,
+		halt => \&halt,
+	},
+);
+
+
+POE::Kernel->run();
+
+sub start {
+	my ($kernel,$heap) = @_[KERNEL,HEAP];
+	print "Starting\n";
+
+	$kernel->alias_set('master');
+
+	foreach (1..512) {
+
+		my $useragent = "ua_$_";
+
+		POE::Component::Client::HTTP->spawn (
+		 Alias => $useragent,
+		 Timeout => 30,
+		 Agent => "Test",
+			);
+	       $kernel->yield('process',$useragent);
+	}
+	 $kernel->delay(halt=>30);
+}
+
+sub process {
+	my ($kernel,$heap,$useragent) = @_[KERNEL,HEAP,ARG0];
+
+    my $uri = HTTP::Request->new(GET => $url);
+
+	$kernel->post($useragent,'request','response',$uri,$useragent);
+	return;
+}
+
+sub response {
+    my ($kernel,$heap,$request_packet,$response_packet) = @_[KERNEL,HEAP,ARG0,ARG1];
+
+    my $request = $request_packet->[0];
+    my $response = $response_packet->[0];
+    my $useragent = $request_packet->[1];  ## this is passed with the request call
+	if ($response->is_success()) {
+		$heap->{responses}++;
+	} else {
+		$heap->{unsuccessful}++;
+	}
+	$kernel->yield('process', $useragent);
+	return;
+}
+
+sub halt {
+	my ($kernel,$heap) = @_[KERNEL,HEAP];
+
+	print "debug success($heap->{responses}) unsuccessful($heap->{unsuccessful}) ... " . $kernel->poe_kernel_loop() . "\n";
+exit;
+
+	return;
+}
+
+1;

@@ -466,19 +466,49 @@ configurations. The current "tests" are:
 
 =item posts
 
+This tests how long it takes to post() N times
+
+This tests how long it took to dispatch/deliver all the posts enqueued in the post() test
+
+This tests how long it took to yield() between 2 states for N times
+
 =item calls
 
-=item alarm_adds
+This tests how long it took to call() N times
 
-=item session creation
+=item alarms
 
-=item session destruction
+This tests how long it took to add N alarms via alarm(), overwriting each other
 
-=item select_read toggles
+This tests how long it took to add N alarms via alarm_add() and how long it took to delete them all
 
-=item select_write toggles
+NOTE: alarm_add is not available on all versions of POE!
+
+=item sessions
+
+This tests how long it took to create N sessions, and how long it took to destroy them all
+
+=item filehandles
+
+This tests how long it took to toggle select_read N times on STDIN and a real filehandle via open()
+
+This tests how long it took to toggle select_write N times on STDIN and a real filehandle via open()
 
 =item POE startup time
+
+This tests how long it took to start + close N instances of a "virgin" POE without any sessions/etc
+
+=item POE Loops
+
+This is actually a "super" test where all of the specific tests is ran against various POE::Loop::XYZ/FOO for comparison
+
+=item POE Assertions
+
+This is actually a "super" test where all of the specific tests is ran against POE with/without assertions enabled
+
+=item POE::XS::Queue::Array
+
+This is actually a "super" test where all of the specific tests is ran against POE with XS goodness enabled/disabled
 
 =back
 
@@ -604,8 +634,8 @@ Automatically exports the benchmark() subroutine.
 =item Perl version smoking
 
 We should be able to run the benchmark over different Perl versions. This would require some fiddling with our
-layout + logic. It's not that urgent because the workaround is to simply execute the smoke suite under a different
-perl binary. It's smart enough to use $^X to be consistent across tests :)
+layout + logic. It's not that urgent because the workaround is to simply execute the benchmarker under a different
+perl binary. It's smart enough to use $^X to be consistent across tests/subprocesses :)
 
 =item Select the EV backend
 
@@ -635,6 +665,8 @@ drop me a line and let me know!
 dngor said there was some benchmarks in the POE svn under trunk/queue...
 
 I want a bench that actually tests socket traffic - stream 10MB of traffic over localhost, and time it?
+
+LotR and Tapout contributed some samples, let's see if I can integrate them...
 
 =item Add SQLite/DBI/etc support to the Analyzer
 

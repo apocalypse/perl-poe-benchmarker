@@ -10,7 +10,7 @@ $VERSION = '0.02';
 require Exporter;
 use vars qw( @ISA @EXPORT_OK );
 @ISA = qw(Exporter);
-@EXPORT_OK = qw( poeloop2load loop2realversion beautify_times );
+@EXPORT_OK = qw( poeloop2load loop2realversion beautify_times knownloops );
 
 # returns the proper "load" stuff for a specific loop
 sub poeloop2load {
@@ -115,6 +115,11 @@ sub beautify_times {
 	return $data;
 }
 
+# returns a list of "known" POE loops
+sub knownloops {
+	return [ qw( Event_Lib EV Glib Prima Gtk Wx Kqueue Tk Select IO_Poll ) ];
+}
+
 1;
 __END__
 =head1 NAME
@@ -134,6 +139,10 @@ This package contains the utility routines and constants that POE::Devel::Benchm
 This package exports those subs via @EXPORT_OK:
 
 =over 4
+
+=item knownloops()
+
+Returns an arrayref of the "known" POE loops as of this version of the Benchmarker
 
 =item poeloop2load()
 

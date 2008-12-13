@@ -18,6 +18,9 @@ BEGIN {
 use POE qw( Session Filter::Line Wheel::Run );
 use base 'POE::Session::AttributeBased';
 
+# Get the utils
+use POE::Devel::Benchmarker::Utils qw ( knownloops );
+
 # analyzes the installed perl directory for available loops
 sub getPOEloops {
 	my $quiet_mode = shift;
@@ -43,7 +46,7 @@ sub _start : State {
 	#	XS::EPoll ( must be POE > 1.003 and weird way of loading )
 	#	XS::Poll ( must be POE > 1.003 and weird way of loading )
 	if ( ! defined $_[HEAP]->{'loops'} ) {
-		$_[HEAP]->{'loops'} = [ qw( Event_Lib EV Glib Prima Gtk Wx Kqueue Tk Select IO_Poll ) ];
+		$_[HEAP]->{'loops'} = knownloops();
 	}
 
 	# First of all, we need to find out what loop libraries are installed
