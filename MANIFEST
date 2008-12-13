@@ -8,6 +8,7 @@ lib/POE/Devel/Benchmarker/GetInstalledLoops.pm
 lib/POE/Devel/Benchmarker/GetPOEdists.pm
 lib/POE/Devel/Benchmarker/SubProcess.pm
 lib/POE/Devel/Benchmarker/Utils.pm
+lib/POE/Devel/Benchmarker/Analyzer.pm
 META.yml
 Changes
 

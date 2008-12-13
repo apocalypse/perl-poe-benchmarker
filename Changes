@@ -1,5 +1,10 @@
 Revision history for Perl extension POE::Devel::Benchmarker
 
+* 0.02
+
+	Added the Analyzer module ( and dump YAML files, yay! )
+	A lot of minor changes+tweaks to get a better dump format
+
 * 0.01
 
 	initial release

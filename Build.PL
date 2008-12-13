@@ -23,15 +23,14 @@ my $build = Module::Build->new(
 		'POE'				=> 0,
 		'POE::Session::AttributeBased'	=> 0,
 
-		# FIXME POE stuff that Test::Dependencies needs to see
-		#'POE::Session'			=> 0,
-		#'POE::Filter::Line'		=> 0,
-		#'POE::Wheel::Run'		=> 0,
-
 		# misc perl stuff
 		'Time::HiRes'			=> 0,
 		'version'			=> 0,
 		'Devel::Hide'			=> 0,
+
+		# Analyzer reqs
+		'YAML::Tiny'			=> 0,
+		#'POE::Component::SimpleDBI'	=> 0,
 
 		# GetPOEdists reqs
 		'LWP::UserAgent'		=> 0,

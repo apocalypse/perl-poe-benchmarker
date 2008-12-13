@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.01';
+$VERSION = '0.02';
 
 # auto-export the only sub we have
 BEGIN {
@@ -15,6 +15,8 @@ BEGIN {
 }
 
 # Import what we need from the POE namespace
+sub POE::Kernel::ASSERT_DEFAULT { 1 }
+sub POE::Session::ASSERT_DEFAULT { 1 }
 use POE qw( Session Filter::Line Wheel::Run );
 use base 'POE::Session::AttributeBased';
 
@@ -26,7 +28,8 @@ use version;
 
 # Load our stuff
 use POE::Devel::Benchmarker::GetInstalledLoops;
-use POE::Devel::Benchmarker::Utils;
+use POE::Devel::Benchmarker::Utils qw( poeloop2load );
+use POE::Devel::Benchmarker::Analyzer;
 
 # Actually run the tests!
 sub benchmark {
@@ -85,22 +88,26 @@ sub benchmark {
 
 # Starts up our session
 sub _start : State {
+	# okay, get all the dists we can!
+	my @versions;
+	if ( opendir( DISTS, 'poedists' ) ) {
+		foreach my $d ( readdir( DISTS ) ) {
+			if ( $d =~ /^POE\-(.+)$/ and $d !~ /\.tar\.gz$/ ) {
+				push( @versions, $1 );
+			}
+		}
+		closedir( DISTS ) or die $!;
+	} else {
+		print "[BENCHMARKER] Unable to open 'poedists' for reading: $!\n";
+		return;
+	}
+
 	# set our alias
 	$_[KERNEL]->alias_set( 'Benchmarker' );
 
 	# sanely handle some signals
 	$_[KERNEL]->sig( 'INT', 'handle_kill' );
 	$_[KERNEL]->sig( 'TERM', 'handle_kill' );
-
-	# okay, get all the dists we can!
-	my @versions;
-	opendir( DISTS, 'poedists' ) or die $!;
-	foreach my $d ( readdir( DISTS ) ) {
-		if ( $d =~ /^POE\-(.+)$/ and $d !~ /\.tar\.gz$/ ) {
-			push( @versions, $1 );
-		}
-	}
-	closedir( DISTS ) or die $!;
 
 	# okay, go through all the dists in version order
 	@versions =	sort { $b <=> $a }
@@ -133,13 +140,30 @@ sub _stop : State {
 	return;
 }
 
+# misc POE handlers
+sub _child : State {
+	return;
+}
+sub handle_kill : State {
+	return;
+}
+
 # we received list of loops from GetInstalledLoops
 sub found_loops : State {
-	$_[HEAP]->{'installed_loops'} = [ sort { $a eq $b } @{ $_[ARG0] } ];
+	$_[HEAP]->{'installed_loops'} = [ sort { $a cmp $b } @{ $_[ARG0] } ];
+
+	# sanity check
+	if ( scalar @{ $_[HEAP]->{'installed_loops'} } == 0 ) {
+		print "[BENCHMARKER] Detected no available POE::Loop, check your configuration?!?\n";
+		return;
+	}
 
 	if ( ! $_[HEAP]->{'quiet_mode'} ) {
 		print "[BENCHMARKER] Detected available POE::Loops -> " . join( " ", @{ $_[HEAP]->{'installed_loops'} } ) . "\n";
 	}
+
+	# Fire up the analyzer
+	initAnalyzer( $_[HEAP]->{'quiet_mode'} );
 
 	# start the benchmark!
 	$_[KERNEL]->yield( 'run_benchmark' );
@@ -323,7 +347,7 @@ sub Got_ERROR : State {
 
 	# ignore exit 0 errors
 	if ( $errnum != 0 ) {
-		warn "Wheel::Run got an $operation error $errnum: $errstr\n";
+		print "[BENCHMARKER] Wheel::Run got an $operation error $errnum: $errstr\n";
 	}
 
 	return;
@@ -372,18 +396,38 @@ sub wrapup_test : State {
 		( $_[HEAP]->{'current_assertions'} ? '-assert' : '-noassert' ) .
 		( $_[HEAP]->{'current_xsqueue'} ? '-xsqueue' : '-noxsqueue' );
 
-	open( my $fh, '>', "results/$file" ) or die $!;
-	print $fh "STARTTIME: " . $_[HEAP]->{'current_starttime'} . " -> TIMES " . join( " ", @{ $_[HEAP]->{'current_starttimes'} } ) . "\n";
-	print $fh "$file\n\n";
-	print $fh $_[HEAP]->{'current_data'} . "\n";
-	if ( $_[HEAP]->{'test_timedout'} ) {
-		print $fh "\nTEST TERMINATED DUE TO TIMEOUT\n";
+	if ( open( my $fh, '>', "results/$file" ) ) {
+		print $fh "STARTTIME: " . $_[HEAP]->{'current_starttime'} . " -> TIMES " . join( " ", @{ $_[HEAP]->{'current_starttimes'} } ) . "\n";
+		print $fh "$file\n";
+		print $fh $_[HEAP]->{'current_data'} . "\n";
+		if ( $_[HEAP]->{'test_timedout'} ) {
+			print $fh "\nTEST TERMINATED DUE TO TIMEOUT\n";
+		}
+		print $fh "ENDTIME: " . $_[HEAP]->{'current_endtime'} . " -> TIMES " . join( " ", @{ $_[HEAP]->{'current_endtimes'} } ) . "\n";
+		close( $fh ) or die $!;
+	} else {
+		print "[BENCHMARKER] Unable to open results/$file for writing -> $!\n";
 	}
-	print $fh "ENDTIME: " . $_[HEAP]->{'current_endtime'} . " -> TIMES " . join( " ", @{ $_[HEAP]->{'current_endtimes'} } ) . "\n";
-	close( $fh ) or die $!;
+
+	# Send the data to the Analyzer to process
+	$_[KERNEL]->post( 'Benchmarker::Analyzer', 'analyze', {
+		'poe_version'	=> $_[HEAP]->{'current_version'}->stringify,	# YAML::Tiny doesn't like version objects :(
+		'poe_loop'	=> 'POE::Loop::' . $_[HEAP]->{'current_loop'},
+		'asserts'	=> $_[HEAP]->{'current_assertions'},
+		'xsqueue'	=> $_[HEAP]->{'current_xsqueue'},
+		'litetests'	=> $_[HEAP]->{'lite_tests'},
+		'start_time'	=> $_[HEAP]->{'current_starttime'},
+		'start_times'	=> [ @{ $_[HEAP]->{'current_starttimes'} } ],
+		'end_time'	=> $_[HEAP]->{'current_endtime'},
+		'end_times'	=> [ @{ $_[HEAP]->{'current_endtimes'} } ],
+		'timedout'	=> $_[HEAP]->{'test_timedout'},
+		'rawdata'	=> $_[HEAP]->{'current_data'},
+		'test_file'	=> $file,
+	} );
 
 	# process the next test
 	$_[KERNEL]->yield( 'bench_xsqueue' );
+
 	return;
 }
 
@@ -446,13 +490,11 @@ I have chosen to use ~/poe-benchmarker:
 	apoc@apoc-x300:~$ mkdir poe-benchmarker
 	apoc@apoc-x300:~$ cd poe-benchmarker
 	apoc@apoc-x300:~/poe-benchmarker$ mkdir poedists
+	apoc@apoc-x300:~/poe-benchmarker$ mkdir results
 	apoc@apoc-x300:~/poe-benchmarker$ cd poedists/
 	apoc@apoc-x300:~/poe-benchmarker/poedists$ perl -MPOE::Devel::Benchmarker::GetPOEdists -e 'getPOEdists( 1 )'
 
 	( go get a coffee while it downloads if you're on a slow link, ha! )
-
-	apoc@apoc-x300:~/poe-benchmarker/poedists$ cd..
-	apoc@apoc-x300:~/poe-benchmarker$ mkdir results
 
 =item Let 'er rip!
 
@@ -466,10 +508,6 @@ NOTE: the Benchmarker expects everything to be in the "local" directory!
 	( go sleep or something, this will take a while! )
 
 =back
-
-=head2 ANALYZING RESULTS
-
-This part of the documentation is woefully incomplete. Please look at the L<POE::Devel::Benchmarker::Analyzer> module.
 
 =head2 BENCHMARKING
 
@@ -492,6 +530,42 @@ default: false
 
 =back
 
+As the Benchmarker goes through the combinations of POE + Eventloop + Assertions + XS::Queue it will dump data into
+the results directory. The Analyzer module also dumps YAML output in the same place, with the suffix of ".yml"
+
+=head2 ANALYZING RESULTS
+
+Please look at the L<POE::Devel::Benchmarker::Analyzer> module.
+
+=head2 HOW DO I?
+
+This section will explain the miscellaneous questions and preemptively answer any concerns :)
+
+=head3 Skip a POE version
+
+Simply delete it from the poedists directory. The Benchmarker will automatically look in that and load POE versions. If
+you wanted to test only 1 version - just delete all directories except for that one.
+
+Keep in mind that the Benchmarker will not automatically untar archives, only the Benchmarker::GetPOEdists module
+does that!
+
+=head3 Skip an eventloop
+
+This isn't implemented yet. As a temporary work-around you could uninstall the POE::Loop::XYZ module from your system :)
+
+=head3 Skip a specific benchmark
+
+Why would you want to? That's the whole point of this suite!
+
+=head3 Create graphs
+
+This will be added to the module soon. However if you have the time+energy, please feel free to dig into the YAML output
+that Benchmarker::Analyzer outputs.
+
+=head3 Restarting where the Benchmarker left off
+
+This isn't implemented yet. You could always manually delete the POE versions that was tested and proceed with the rest.
+
 =head1 EXPORT
 
 Automatically exports the benchmark() subroutine.
@@ -499,14 +573,6 @@ Automatically exports the benchmark() subroutine.
 =head1 TODO
 
 =over 4
-
-=item write POE::Devel::Benchmarker::Analyzer
-
-I need to finish this module so it will dump YAML structures along the raw output. That way we can easily parse the data
-and use it for nifty stuff like graphs or websites :)
-
-BEWARE: please don't write any tools to analyze the dumps as of now, and give me some more time to complete this, because
-I probably will be tweaking the raw output a little to make the regexes less crazy!
 
 =item Perl version smoking
 
@@ -526,7 +592,7 @@ perl binary. It's smart enough to use $^X to be consistent across tests :)
 Currently we blindly move on and test with/without this. We should be smarter and not waste one extra test per iteration
 if it isn't installed!
 
-=item Be more smarter in smoking timeouts
+=item Be smarter in smoking timeouts
 
 Currently we depend on the litetests option and hardcode some values including the timeout. If your machine is incredibly
 slow, there's a chance that it could timeout unnecessarily. Please look at the outputs and check to see if there are unusual
@@ -534,10 +600,33 @@ failures, and inform me.
 
 Also, some loops perform badly and take almost forever! /me glares at Gtk...
 
-=item Kqueue support
+=item More benchmarks!
+
+As usual, me and the crowd in #poe have plenty of ideas for tests. We'll be adding them over time, but if you have an idea please
+drop me a line and let me know!
+
+dngor said there was some benchmarks in the POE svn under trunk/queue...
+
+I want a bench that actually tests socket traffic - stream 10MB of traffic over localhost, and time it?
+
+=item Add SQLite/DBI/etc support to the Analyzer
+
+It would be nice if we could have a local SQLite db to dump our stats into. This would make arbitrary reports much easier than
+loading raw YAML files and trying to make sense of them, ha! Also, this means somebody can do the smoking and send the SQLite
+db to another person to generate the graphs, cool!
+
+=item Kqueue loop support
 
 As I don't have access to a *BSD box, I cannot really test this. Furthermore, it isn't clear on how I can force/unload this
 module from POE...
+
+=item Wx loop support
+
+I have Wx installed, but it doesn't work. Obviously I don't know how to use Wx ;)
+
+If you have experience, please drop me a line on how to do the "right" thing to get Wx loaded under POE. Here's the error:
+
+	Can't call method "MainLoop" on an undefined value at /usr/local/share/perl/5.8.8/POE/Loop/Wx.pm line 91.
 
 =back
 

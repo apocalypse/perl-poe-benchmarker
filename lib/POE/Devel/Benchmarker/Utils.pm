@@ -4,13 +4,13 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.01';
+$VERSION = '0.02';
 
 # auto-export the only sub we have
 require Exporter;
-use vars qw( @ISA @EXPORT );
+use vars qw( @ISA @EXPORT_OK );
 @ISA = qw(Exporter);
-@EXPORT = qw( poeloop2load loop2realversion );
+@EXPORT_OK = qw( poeloop2load loop2realversion beautify_times );
 
 # returns the proper "load" stuff for a specific loop
 sub poeloop2load {
@@ -81,6 +81,40 @@ sub loop2realversion {
 	}
 }
 
+# helper routine to parse times() output
+sub beautify_times {
+	my $string = shift;
+	my $origdata = shift;
+
+	# split it up
+	$string =~ s/^\s+//; $string =~ s/\s+$//;
+	my @times = split( /\s+/, $string );
+
+	# make the data struct
+	# ($user,$system,$cuser,$csystem) = times;
+	my $data = {
+		'user'		=> $times[4] - $times[0],
+		'sys'		=> $times[5] - $times[1],
+		'cuser'		=> $times[6] - $times[2],
+		'csys'		=> $times[7] - $times[3],
+	};
+
+	# add original data?
+	if ( $origdata ) {
+		$data->{'s_user'} = $times[0];
+		$data->{'s_sys'} = $times[1];
+		$data->{'s_cuser'} = $times[2];
+		$data->{'s_csys'} = $times[3];
+		$data->{'e_user'} = $times[4];
+		$data->{'e_sys'} = $times[5];
+		$data->{'e_cuser'} = $times[6];
+		$data->{'e_csys'} = $times[7];
+	}
+
+	# send it back!
+	return $data;
+}
+
 1;
 __END__
 =head1 NAME
@@ -97,7 +131,7 @@ This package contains the utility routines and constants that POE::Devel::Benchm
 
 =head1 EXPORT
 
-Automatically exports those subs:
+This package exports those subs via @EXPORT_OK:
 
 =over 4
 
@@ -112,6 +146,28 @@ Returns the "parent" class to load for a specific loop. An example is:
 Returns the version of the "parent" class for a specific loop. An example is:
 
 	$ver = loop2realversion( 'IO_Poll' );	# $ver now contains $IO::Poll::VERSION
+
+=item beautify_times()
+
+Returns a hashref of data from parsing 2 consecutive times() structures in a string. You can pass an additional parameter
+( boolean ) to include the original data. An example is:
+
+	print Data::Dumper::Dumper( beautify_times( '0.1 0 0 0 0.1 0 0.76 0.09', 1 ) );
+	{
+		"sys" => 0,		# total system time
+		"user" => 0,		# total user time
+		"csys" => 0.76		# total children system time
+		"cuser" => 0.08		# total children user time
+
+		"e_csys" => "0.09",	# end children system time ( optional )
+		"e_cuser" => "0.76",	# end children user time ( optional )
+		"e_sys" => 0,		# end system time ( optional )
+		"e_user" => "0.1",	# end user time ( optional )
+		"s_csys" => 0,		# start children system time ( optional )
+		"s_cuser" => 0,		# start children user time ( optional )
+		"s_sys" => 0,		# start system time ( optional )
+		"s_user" => "0.1"	# start user time ( optional )
+	}
 
 =back
 

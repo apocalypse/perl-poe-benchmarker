@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.01';
+$VERSION = '0.02';
 
 # Import Time::HiRes's time()
 use Time::HiRes qw( time );
@@ -31,11 +31,7 @@ BEGIN {
 use POE;
 
 # load our utility stuff
-use POE::Devel::Benchmarker::Utils;
-
-# autoflush our STDOUT for sanity
-use FileHandle;
-autoflush STDOUT 1;
+use POE::Devel::Benchmarker::Utils qw( loop2realversion poeloop2load );
 
 # init our global variables ( bad, haha )
 my( $version, $eventloop, $asserts, $lite_tests, $pocosession );
@@ -43,6 +39,12 @@ my( $post_limit, $alarm_limit, $alarm_add_limit, $session_limit, $select_limit, 
 
 # the main routine which will load everything + start
 sub benchmark {
+	# autoflush our STDOUT for sanity
+	STDOUT->autoflush( 1 );
+
+	# print our banner
+	print "SubProcess-" . __PACKAGE__->VERSION . "\n";
+
 	# process the version
 	process_version();
 
@@ -92,8 +94,15 @@ sub process_eventloop {
 	if ( ! defined $eventloop ) {
 		die "Please supply an event loop!";
 	} else {
-		my $v = loop2realversion( $eventloop ) || 'UNKNOWN';
-		print "Using loop: $eventloop-$v\n";
+		my $loop = poeloop2load( $eventloop );
+		if ( ! defined $loop ) {
+			$loop = $eventloop;
+		}
+		my $v = loop2realversion( $eventloop );
+		if ( ! defined $v ) {
+			$v = 'UNKNOWN';
+		}
+		print "Using master loop: $loop-$v\n";
 	}
 
 	return;
@@ -184,8 +193,7 @@ sub run_benchmarks {
 	bench_poe();
 
 	# dump some misc info
-	dump_memory();
-	dump_times();
+	dump_pidinfo();
 	dump_perlinfo();
 	dump_sysinfo();
 
@@ -216,7 +224,7 @@ sub bench_startup {
 	my @end_times = times();
 	my $elapsed = time() - $start;
 	printf( "\n\n% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $start_limit, 'startups', $elapsed, $start_limit/$elapsed );
-	print "startup times: @start_times @end_times\n";
+	print "startups times: @start_times @end_times\n";
 
 	return;
 }
@@ -363,7 +371,7 @@ sub poe_manyalarms {
 		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $alarm_add_limit, 'alarm_clears', $elapsed, $alarm_add_limit/$elapsed );
 		print "alarm_clears times: @start_times @end_times\n";
 	} else {
-		print "this version of POE does not support alarm_add, skipping alarm_adds/alarm_clears tests!\n";
+		print "alarm_add NOT SUPPORTED on this version of POE, skipping alarm_adds/alarm_clears tests!\n";
 	}
 
 	$_[KERNEL]->yield( 'sessions' );
@@ -382,8 +390,8 @@ sub poe_sessions {
 	}
 	my $elapsed = time() - $start;
 	my @end_times = times();
-	printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $session_limit, 'session creates', $elapsed, $session_limit/$elapsed );
-	print "session create times: @start_times @end_times\n";
+	printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $session_limit, 'session_creates', $elapsed, $session_limit/$elapsed );
+	print "session_creates times: @start_times @end_times\n";
 
 	$_[KERNEL]->yield( 'sessions_end' );
 	$_[HEAP]->{start} = time();
@@ -395,8 +403,8 @@ sub poe_sessions {
 sub poe_sessions_end {
 	my $elapsed = time() - $_[HEAP]->{start};
 	my @end_times = times();
-	printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $session_limit, 'session destroys', $elapsed, $session_limit/$elapsed );
-	print "session destroys times: " . join( " ", @{ $_[HEAP]->{starttimes} } ) . " @end_times\n";
+	printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $session_limit, 'session_destroys', $elapsed, $session_limit/$elapsed );
+	print "session_destroys times: " . join( " ", @{ $_[HEAP]->{starttimes} } ) . " @end_times\n";
 
 	$_[KERNEL]->yield( 'stdin_read' );
 
@@ -421,12 +429,12 @@ sub poe_stdin_read {
 		}
 	};
 	if ( $@ ) {
-		print "filehandle select_read on *STDIN FAILED: $@\n";
+		print "filehandle select_read on STDIN FAILED: $@\n";
 	} else {
 		my $elapsed = time() - $start;
 		my @end_times = times();
-		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $select_limit, 'select_read STDIN', $elapsed, $select_limit/$elapsed );
-		print "select_read STDIN times: @start_times @end_times\n";
+		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $select_limit, 'select_read_STDIN', $elapsed, $select_limit/$elapsed );
+		print "select_read_STDIN times: @start_times @end_times\n";
 	}
 
 	$_[KERNEL]->yield( 'stdin_write' );
@@ -445,12 +453,12 @@ sub poe_stdin_write {
 		}
 	};
 	if ( $@ ) {
-		print "filehandle select_write on *STDIN FAILED: $@\n";
+		print "filehandle select_write on STDIN FAILED: $@\n";
 	} else {
 		my $elapsed = time() - $start;
 		my @end_times = times();
-		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $select_limit, 'select_write STDIN', $elapsed, $select_limit/$elapsed );
-		print "select_write STDIN times: @start_times @end_times\n";
+		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $select_limit, 'select_write_STDIN', $elapsed, $select_limit/$elapsed );
+		print "select_write_STDIN times: @start_times @end_times\n";
 	}
 
 	$_[KERNEL]->yield( 'myfh_read' );
@@ -467,26 +475,25 @@ sub poe_myfh_read {
 		return;
 	}
 
-	open( my $fh, '+>', 'poebench' ) or die $!;
 	my $start = time();
 	my @start_times = times();
 	eval {
+		open( my $fh, '+>', 'poebench' ) or die $!;
 		for (my $i = 0; $i < $select_limit; $i++) {
 			$_[KERNEL]->select_read( $fh, 'whee' );
 			$_[KERNEL]->select_read( $fh );
 		}
+		close( $fh ) or die $!;
+		unlink( 'poebench' ) or die $!;
 	};
 	if ( $@ ) {
-		print "filehandle select_read on *MYFH FAILED: $@\n";
+		print "filehandle select_read on MYFH FAILED: $@\n";
 	} else {
 		my $elapsed = time() - $start;
 		my @end_times = times();
-		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $select_limit, 'select_read MYFH', $elapsed, $select_limit/$elapsed );
-		print "select_read MYFH times: @start_times @end_times\n";
+		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $select_limit, 'select_read_MYFH', $elapsed, $select_limit/$elapsed );
+		print "select_read_MYFH times: @start_times @end_times\n";
 	}
-
-	close( $fh ) or die $!;
-	unlink( 'poebench' ) or die $!;
 
 	$_[KERNEL]->yield( 'myfh_write' );
 
@@ -495,26 +502,25 @@ sub poe_myfh_read {
 
 # How many times can we select/unselect WRITE a real filehandle?
 sub poe_myfh_write {
-	open( my $fh, '+>', 'poebench' ) or die $!;
 	my $start = time();
 	my @start_times = times();
 	eval {
+		open( my $fh, '+>', 'poebench' ) or die $!;
 		for (my $i = 0; $i < $select_limit; $i++) {
 			$_[KERNEL]->select_write( $fh, 'whee' );
 			$_[KERNEL]->select_write( $fh );
 		}
+		close( $fh ) or die $!;
+		unlink( 'poebench' ) or die $!;
 	};
 	if ( $@ ) {
-		print "filehandle select_write on *MYFH FAILED: $@\n";
+		print "filehandle select_write on MYFH FAILED: $@\n";
 	} else {
 		my $elapsed = time() - $start;
 		my @end_times = times();
-		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $select_limit, 'select_write MYFH', $elapsed, $select_limit/$elapsed );
-		print "select_write MYFH times: @start_times @end_times\n";
+		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $select_limit, 'select_write_MYFH', $elapsed, $select_limit/$elapsed );
+		print "select_write_MYFH times: @start_times @end_times\n";
 	}
-
-	close( $fh ) or die $!;
-	unlink( 'poebench' ) or die $!;
 
 	$_[KERNEL]->yield( 'calls' );
 
@@ -563,37 +569,29 @@ sub poe_eventsquirt_done {
 }
 
 # Get the memory footprint
-sub dump_memory {
-	print "\n\nMemory footprint:\n";
-	open( my $fh, '<', '/proc/self/status' ) or die $!;
-	while ( <$fh> ) {
-		print;
+sub dump_pidinfo {
+	my $ret = open( my $fh, '<', '/proc/self/status' );
+	if ( defined $ret ) {
+		while ( <$fh> ) {
+			print "pidinfo: $_";
+		}
+		close( $fh ) or die $!;
+	} else {
+		print "UNABLE TO GET /proc/self/status\n";
 	}
-	close( $fh ) or die $!;
-
-	return;
-}
-
-# print the time it took to execute this program
-sub dump_times {
-	my ($wall, $user, $system, $cuser, $csystem) = ( (time-$^T), times() );
-	printf( ( "\n\n--- times ---\n" .
-		"wall : %9.3f\n" .
-		"user : %9.3f  cuser: %9.3f\n" .
-		"sys  : %9.3f  csys : %9.3f\n"
-		),
-		$wall, $user, $cuser, $system, $csystem,
-	);
 
 	return;
 }
 
 # print the local Perl info
 sub dump_perlinfo {
-	print "\n\nRunning under perl binary: " . $^X . "\n";
+	print "Running under perl binary: " . $^X . "\n";
 
 	require Config;
-	print Config::myconfig();
+	my $config = Config::myconfig();
+	foreach my $l ( split( /\n/, $config ) ) {
+		print "perlconfig: $l\n";
+	}
 
 	return;
 }
@@ -603,20 +601,18 @@ sub dump_sysinfo {
 	print "Running under machine: " . `uname -a` . "\n";
 
 	# get cpuinfo
-	print "Running under CPU:\n";
-	open( my $fh, '<', '/proc/cpuinfo' ) or die $!;
-	while ( <$fh> ) {
-		print;
+	my $ret = open( my $fh, '<', '/proc/cpuinfo' );
+	if ( defined $ret ) {
+		while ( <$fh> ) {
+			chomp;
+			if ( $_ ne '' ) {
+				print "cpuinfo: $_\n";
+			}
+		}
+		close( $fh ) or die $!;
+	} else {
+		print "UNABLE TO GET /proc/cpuinfo\n";
 	}
-	close( $fh ) or die $!;
-
-	# get meminfo
-	print "Running under meminfo:\n";
-	open( $fh, '<', '/proc/meminfo' ) or die $!;
-	while ( <$fh> ) {
-		print;
-	}
-	close( $fh ) or die $!;
 
 	return;
 }
