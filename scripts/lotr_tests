@@ -1,0 +1,168 @@
+format options below
+
+===== test.sh ======
+# select (default)
+NYTPROF="file=Select-single.out" \
+perl -d:NYTProf echo-single.pl 'Loop::Select' &
+perl stress.pl
+
+wait
+
+# Event
+NYTPROF="file=Event-single.out" \
+perl -MEvent -d:NYTProf echo-single.pl 'Loop::Event' &
+perl stress.pl
+
+wait
+
+#IO::Poll
+perl -MIO::Poll -d:NYTProf echo-single.pl 'Loop::IO_Poll' &
+perl stress.pl
+
+wait
+
+# EV
+perl -MEV -d:NYTProf echo-single.pl 'Loop::EV' &
+perl stress.pl
+
+wait
+
+# Glib
+perl -d:NYTProf -MGlib echo-single.pl 'Loop::Glib' &
+perl stress.pl
+
+wait
+
+#XS Poll
+NYTPROF="file=XSPoll-single.out" \
+perl -d:NYTProf echo-single.pl 'XS::Loop::Poll' &
+perl stress.pl
+
+wait
+
+#XS EPoll
+NYTPROF="file=XSEPoll-single.out" \
+perl -d:NYTProf echo-single.pl 'XS::Loop::EPoll' &
+perl stress.pl
+
+wait
+
+===== echo-single.pl ======
+use strict;
+use warnings;
+
+my $loop;
+BEGIN {
+	$loop = shift @ARGV;
+}
+use POE ('Filter::Stream', $loop);
+use Test::POE::Server::TCP;
+
+POE::Session->create (
+  inline_states => {
+    _start => sub {
+	warn $_[KERNEL]->poe_kernel_loop;
+      $_[HEAP]->{testd} = Test::POE::Server::TCP->spawn(
+	filter => POE::Filter::Stream->new,
+	address => 'localhost',
+	port => 12345,
+      );
+    },
+    testd_client_input => sub {
+      $_[HEAP]->{testd}->send_to_client(@_[ARG0, ARG1]);
+    },
+    testd_disconnected => sub {
+      $_[KERNEL]->delay('end', 3);
+    },
+    end => sub {
+      $_[HEAP]->{testd}->shutdown;
+    }
+  }
+);
+
+$poe_kernel->run;
+===== stress.pl =======
+use strict;
+use warnings;
+use Scalar::Util qw(blessed);
+# Select Event IO_Poll XS::Poll Glib
+use Event;
+use POE qw(
+	Loop::Event
+	Wheel::ReadWrite
+	Filter::Stream
+	Component::Client::TCP
+);
+
+$| = 1;
+
+for my $i (1..500) {
+
+POE::Component::Client::TCP->new (
+   RemoteAddress => "localhost",
+   RemotePort    => "12345",
+   #Filter => POE::Filter::SSL->new(),
+   Filter => POE::Filter::Stream->new(),
+
+   InlineStates => {
+	bar => sub {
+		my ($kernel, $heap) = @_[KERNEL, HEAP];
+
+		if ($heap->{count}-- > 0) {
+			$heap->{server}->put("$i -- " . $heap->{count});
+			$kernel->delay(bar => 0.01);
+		} else {
+			$kernel->delay('shutdown' => 1);
+		}
+	},
+   },
+   Connected => sub {
+      my ($kernel, $heap) = @_[KERNEL, HEAP];
+
+      $heap->{count} = 50;
+      $kernel->yield('bar');
+   },
+   ServerInput => sub {
+      my ($kernel, $heap, $input) = @_[KERNEL, HEAP, ARG0];
+
+      #print "$input\n";
+   },
+);
+
+}
+
+$poe_kernel->run;
+exit 0;
+
+
+---- without Test::POE::Server::TCP -----
+use strict;
+use warnings;
+
+my $loop;
+
+BEGIN {
+	$loop = shift @ARGV;
+}
+use POE ($loop, qw(
+
+   Component::Server::TCP
+   Wheel::ReadWrite
+   Filter::Stream
+));
+
+my $s = POE::Component::Server::TCP->new(
+   Port => 12345,
+   ClientFilter => POE::Filter::Stream->new,
+   Started => sub {
+	warn $_[KERNEL]->poe_kernel_loop;
+      $_[KERNEL]->delay('shutdown', 180);
+   },
+   ClientInput => sub {
+      my ($heap, $input) = @_[HEAP, ARG0];
+
+      $heap->{client}->put($input);
+   },
+);
+
+$poe_kernel->run;

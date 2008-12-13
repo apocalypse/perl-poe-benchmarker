@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.01';
+$VERSION = '0.02';
 
 # auto-export the only sub we have
 BEGIN {
@@ -21,12 +21,14 @@ use base 'POE::Session::AttributeBased';
 # analyzes the installed perl directory for available loops
 sub getPOEloops {
 	my $quiet_mode = shift;
+	my $forceloops = shift;
 
 	# create our session!
 	POE::Session->create(
 		POE::Devel::Benchmarker::GetInstalledLoops->inline_states(),
 		'heap'	=>	{
 			'quiet_mode'	=> $quiet_mode,
+			'loops'		=> $forceloops,
 		},
 	);
 }
@@ -40,7 +42,9 @@ sub _start : State {
 	# known impossible loops:
 	#	XS::EPoll ( must be POE > 1.003 and weird way of loading )
 	#	XS::Poll ( must be POE > 1.003 and weird way of loading )
-	$_[HEAP]->{'loops'} = [ qw( Event_Lib EV Glib Prima Gtk Wx Kqueue Tk Select IO_Poll ) ];
+	if ( ! defined $_[HEAP]->{'loops'} ) {
+		$_[HEAP]->{'loops'} = [ qw( Event_Lib EV Glib Prima Gtk Wx Kqueue Tk Select IO_Poll ) ];
+	}
 
 	# First of all, we need to find out what loop libraries are installed
 	$_[HEAP]->{'found_loops'} = [];

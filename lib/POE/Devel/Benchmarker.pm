@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.02';
+$VERSION = '0.03';
 
 # auto-export the only sub we have
 BEGIN {
@@ -38,6 +38,7 @@ sub benchmark {
 	# set default options
 	my $lite_tests = 1;
 	my $quiet_mode = 0;
+	my $forceloops = undef;	# default to all known loops in GetInstalledLoops
 
 	# process our options
 	if ( defined $options and ref $options and ref( $options ) eq 'HASH' ) {
@@ -56,6 +57,20 @@ sub benchmark {
 				$quiet_mode = 1;
 			} else {
 				$quiet_mode = 0;
+			}
+		}
+
+		# process forceloops
+		if ( exists $options->{'loop'} and defined $options->{'loop'} ) {
+			if ( ! ref $options->{'loop'} ) {
+				# split it via CSV
+				$forceloops = [ split( /,/, $options->{'loop'} ) ];
+				foreach ( @$forceloops ) {
+					$_ =~ s/^\s+//; $_ =~ s/\s+$//;
+				}
+			} else {
+				# treat it as array
+				$forceloops = $options->{'loop'};
 			}
 		}
 	}
@@ -78,6 +93,7 @@ sub benchmark {
 		'heap'	=>	{
 			'lite_tests'	=> $lite_tests,
 			'quiet_mode'	=> $quiet_mode,
+			'forceloops'	=> $forceloops,
 		},
 	);
 
@@ -121,7 +137,7 @@ sub _start : State {
 	}
 
 	# First of all, we need to find out what loop libraries are installed
-	getPOEloops( $_[HEAP]->{'quiet_mode'} );
+	getPOEloops( $_[HEAP]->{'quiet_mode'}, $_[HEAP]->{'forceloops'} );
 
 	return;
 }
@@ -520,13 +536,28 @@ a list of the valid options:
 
 This enables the "lite" tests which will not take up too much time.
 
+	benchmark( { litetests => 0 } );
+
 default: true
 
 =item quiet => boolean
 
 This enables quiet mode which will not print anything to the console except for errors.
 
+	benchmark( { 'quiet' => 1 } );
+
 default: false
+
+=item loop => csv list or array
+
+This overrides the built-in loop detection algorithm and tries to locate the specified loops.
+
+NOTE: Capitalization is important!
+
+	benchmark( { 'loop' => 'IO_Poll,Select' } );
+	benchmark( { 'loop' => [ qw( Tk Gtk ) ] } );
+
+Known loops: Event_Lib EV Glib Prima Gtk Wx Kqueue Tk Select IO_Poll
 
 =back
 
@@ -548,10 +579,6 @@ you wanted to test only 1 version - just delete all directories except for that 
 
 Keep in mind that the Benchmarker will not automatically untar archives, only the Benchmarker::GetPOEdists module
 does that!
-
-=head3 Skip an eventloop
-
-This isn't implemented yet. As a temporary work-around you could uninstall the POE::Loop::XYZ module from your system :)
 
 =head3 Skip a specific benchmark
 
@@ -627,6 +654,11 @@ I have Wx installed, but it doesn't work. Obviously I don't know how to use Wx ;
 If you have experience, please drop me a line on how to do the "right" thing to get Wx loaded under POE. Here's the error:
 
 	Can't call method "MainLoop" on an undefined value at /usr/local/share/perl/5.8.8/POE/Loop/Wx.pm line 91.
+
+=item XS loop support
+
+The POE::XS::Loop::* modules theoretically could be tested too. However, they will only work in POE >= 1.003! This renders
+the concept somewhat moot. Maybe, after POE has progressed some versions we can implement this...
 
 =back
 

@@ -1,5 +1,9 @@
 Revision history for Perl extension POE::Devel::Benchmarker
 
+* 0.03
+
+	Added the loop option to benchmark(), thanks dngor!
+
 * 0.02
 
 	Added the Analyzer module ( and dump YAML files, yay! )
