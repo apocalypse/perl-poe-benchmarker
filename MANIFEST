@@ -4,10 +4,12 @@ MANIFEST
 MANIFEST.SKIP
 README
 lib/POE/Devel/Benchmarker.pm
+lib/POE/Devel/Benchmarker/GetInstalledLoops.pm
+lib/POE/Devel/Benchmarker/GetPOEdists.pm
 lib/POE/Devel/Benchmarker/SubProcess.pm
-META.yml                                 Module meta-data (added by MakeMaker)
+lib/POE/Devel/Benchmarker/Utils.pm
+META.yml
 Changes
-scripts/getdists.pl
 
 t/1_load.t
 

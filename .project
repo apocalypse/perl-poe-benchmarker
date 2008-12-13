@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>perl-poe-simpledbi</name>
+	<name>perl-poe-benchmarker</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -15,4 +15,3 @@
 		<nature>org.epic.perleditor.perlnature</nature>
 	</natures>
 </projectDescription>
-
