@@ -13,13 +13,17 @@ use Time::HiRes qw( time );
 BEGIN {
 	# should we enable assertions?
 	if ( defined $ARGV[2] and $ARGV[2] ) {
+		## no critic
 		eval "sub POE::Kernel::ASSERT_DEFAULT () { 1 }";
 		eval "sub POE::Session::ASSERT_STATES () { 1 }";
+		## use critic
 	}
 
 	# should we "hide" XS::Queue::Array?
 	if ( defined $ARGV[4] and $ARGV[4] ) {
+		## no critic
 		eval "use Devel::Hide qw( POE/XS/Queue/Array.pm )";
+		## use critic
 	}
 }
 
@@ -463,13 +467,13 @@ sub poe_myfh_read {
 		return;
 	}
 
-	open( MYFH, '+>', 'poebench' ) or die $!;
+	open( my $fh, '+>', 'poebench' ) or die $!;
 	my $start = time();
 	my @start_times = times();
 	eval {
 		for (my $i = 0; $i < $select_limit; $i++) {
-			$_[KERNEL]->select_read( *MYFH, 'whee' );
-			$_[KERNEL]->select_read( *MYFH );
+			$_[KERNEL]->select_read( $fh, 'whee' );
+			$_[KERNEL]->select_read( $fh );
 		}
 	};
 	if ( $@ ) {
@@ -481,7 +485,7 @@ sub poe_myfh_read {
 		print "select_read MYFH times: @start_times @end_times\n";
 	}
 
-	close( MYFH ) or die $!;
+	close( $fh ) or die $!;
 	unlink( 'poebench' ) or die $!;
 
 	$_[KERNEL]->yield( 'myfh_write' );
@@ -491,13 +495,13 @@ sub poe_myfh_read {
 
 # How many times can we select/unselect WRITE a real filehandle?
 sub poe_myfh_write {
-	open( MYFH, '+>', 'poebench' ) or die $!;
+	open( my $fh, '+>', 'poebench' ) or die $!;
 	my $start = time();
 	my @start_times = times();
 	eval {
 		for (my $i = 0; $i < $select_limit; $i++) {
-			$_[KERNEL]->select_write( *MYFH, 'whee' );
-			$_[KERNEL]->select_write( *MYFH );
+			$_[KERNEL]->select_write( $fh, 'whee' );
+			$_[KERNEL]->select_write( $fh );
 		}
 	};
 	if ( $@ ) {
@@ -509,7 +513,7 @@ sub poe_myfh_write {
 		print "select_write MYFH times: @start_times @end_times\n";
 	}
 
-	close( MYFH ) or die $!;
+	close( $fh ) or die $!;
 	unlink( 'poebench' ) or die $!;
 
 	$_[KERNEL]->yield( 'calls' );
@@ -561,11 +565,11 @@ sub poe_eventsquirt_done {
 # Get the memory footprint
 sub dump_memory {
 	print "\n\nMemory footprint:\n";
-	open( MEMORY, '/proc/self/status' ) or die $!;
-	while ( <MEMORY> ) {
+	open( my $fh, '<', '/proc/self/status' ) or die $!;
+	while ( <$fh> ) {
 		print;
 	}
-	close( MEMORY ) or die $!;
+	close( $fh ) or die $!;
 
 	return;
 }
@@ -600,19 +604,19 @@ sub dump_sysinfo {
 
 	# get cpuinfo
 	print "Running under CPU:\n";
-	open( CPUINFO, '/proc/cpuinfo' ) or die $!;
-	while ( <CPUINFO> ) {
+	open( my $fh, '<', '/proc/cpuinfo' ) or die $!;
+	while ( <$fh> ) {
 		print;
 	}
-	close( CPUINFO ) or die $!;
+	close( $fh ) or die $!;
 
 	# get meminfo
 	print "Running under meminfo:\n";
-	open( MEMINFO, '/proc/meminfo' ) or die $!;
-	while ( <MEMINFO> ) {
+	open( $fh, '<', '/proc/meminfo' ) or die $!;
+	while ( <$fh> ) {
 		print;
 	}
-	close( MEMINFO ) or die $!;
+	close( $fh ) or die $!;
 
 	return;
 }

@@ -372,15 +372,15 @@ sub wrapup_test : State {
 		( $_[HEAP]->{'current_assertions'} ? '-assert' : '-noassert' ) .
 		( $_[HEAP]->{'current_xsqueue'} ? '-xsqueue' : '-noxsqueue' );
 
-	open( RESULT, '>', "results/$file" ) or die $!;
-	print RESULT "STARTTIME: " . $_[HEAP]->{'current_starttime'} . " -> TIMES " . join( " ", @{ $_[HEAP]->{'current_starttimes'} } ) . "\n";
-	print RESULT "$file\n\n";
-	print RESULT $_[HEAP]->{'current_data'} . "\n";
+	open( my $fh, '>', "results/$file" ) or die $!;
+	print $fh "STARTTIME: " . $_[HEAP]->{'current_starttime'} . " -> TIMES " . join( " ", @{ $_[HEAP]->{'current_starttimes'} } ) . "\n";
+	print $fh "$file\n\n";
+	print $fh $_[HEAP]->{'current_data'} . "\n";
 	if ( $_[HEAP]->{'test_timedout'} ) {
-		print RESULT "\nTEST TERMINATED DUE TO TIMEOUT\n";
+		print $fh "\nTEST TERMINATED DUE TO TIMEOUT\n";
 	}
-	print RESULT "ENDTIME: " . $_[HEAP]->{'current_endtime'} . " -> TIMES " . join( " ", @{ $_[HEAP]->{'current_endtimes'} } ) . "\n";
-	close( RESULT ) or die $!;
+	print $fh "ENDTIME: " . $_[HEAP]->{'current_endtime'} . " -> TIMES " . join( " ", @{ $_[HEAP]->{'current_endtimes'} } ) . "\n";
+	close( $fh ) or die $!;
 
 	# process the next test
 	$_[KERNEL]->yield( 'bench_xsqueue' );
@@ -402,15 +402,24 @@ POE::Devel::Benchmarker - Benchmarking POE's performance ( acts more like a smok
 This package of tools is designed to benchmark POE's performace across different
 configurations. The current "tests" are:
 
-=over
+=over 4
+
 =item posts
+
 =item calls
+
 =item alarm_adds
+
 =item session creation
+
 =item session destruction
+
 =item select_read toggles
+
 =item select_write toggles
+
 =item POE startup time
+
 =back
 
 =head1 DESCRIPTION
@@ -421,7 +430,8 @@ This module is poorly documented now. Please give me some time to properly docum
 
 Here's a simple outline to get you up to speed quickly. ( and smoking! )
 
-=over
+=over 4
+
 =item Install CPAN package + dependencies
 
 Download+install the POE::Devel::Benchmarker package from CPAN
@@ -464,7 +474,8 @@ This part of the documentation is woefully incomplete. Please look at the L<POE:
 This module exposes only one subroutine, the benchmark() one. You can pass a hashref to it to set various options. Here is
 a list of the valid options:
 
-=over
+=over 4
+
 =item litetests => boolean
 
 This enables the "lite" tests which will not take up too much time.
@@ -485,7 +496,8 @@ Automatically exports the benchmark() subroutine.
 
 =head1 TODO
 
-=over
+=over 4
+
 =item Perl version smoking
 
 We should be able to run the benchmark over different Perl versions. This would require some fiddling with our
@@ -509,6 +521,13 @@ if it isn't installed!
 Currently we depend on the lite_tests option and hardcode some values including the timeout. If your machine is incredibly
 slow, there's a chance that it could timeout unnecessarily. Please look at the outputs and check to see if there are unusual
 failures, and inform me.
+
+Also, some loops perform badly and take almost forever! /me glares at Gtk...
+
+=item Kqueue support
+
+As I don't have access to a *BSD box, I cannot really test this. Furthermore, it isn't clear on how I can force/unload this
+module from POE...
 
 =back
 

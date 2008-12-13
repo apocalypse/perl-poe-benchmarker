@@ -99,7 +99,8 @@ This package contains the utility routines and constants that POE::Devel::Benchm
 
 Automatically exports those subs:
 
-=over
+=over 4
+
 =item poeloop2load()
 
 Returns the "parent" class to load for a specific loop. An example is:

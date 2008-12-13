@@ -24,9 +24,9 @@ my $build = Module::Build->new(
 		'POE::Session::AttributeBased'	=> 0,
 
 		# FIXME POE stuff that Test::Dependencies needs to see
-		'POE::Session'			=> 0,
-		'POE::Filter::Line'		=> 0,
-		'POE::Wheel::Run'		=> 0,
+		#'POE::Session'			=> 0,
+		#'POE::Filter::Line'		=> 0,
+		#'POE::Wheel::Run'		=> 0,
 
 		# misc perl stuff
 		'Time::HiRes'			=> 0,
