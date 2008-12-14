@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.03';
+$VERSION = '0.04';
 
 # Import Time::HiRes's time()
 use Time::HiRes qw( time );
@@ -43,9 +43,6 @@ my( $post_limit, $alarm_limit, $alarm_add_limit, $session_limit, $select_limit, 
 sub benchmark {
 	# autoflush our STDOUT for sanity
 	STDOUT->autoflush( 1 );
-
-	# print our banner
-	print "SubProcess-" . __PACKAGE__->VERSION . "\n";
 
 	# process the version
 	process_version();
@@ -575,7 +572,10 @@ sub dump_pidinfo {
 	my $ret = open( my $fh, '<', '/proc/self/status' );
 	if ( defined $ret ) {
 		while ( <$fh> ) {
-			print "pidinfo: $_";
+			chomp;
+			if ( $_ ne '' ) {
+				print "pidinfo: $_\n";
+			}
 		}
 		close( $fh ) or die $!;
 	} else {

@@ -4,13 +4,24 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.03';
+$VERSION = '0.04';
 
 # auto-export the only sub we have
 require Exporter;
 use vars qw( @ISA @EXPORT_OK );
 @ISA = qw(Exporter);
-@EXPORT_OK = qw( poeloop2load loop2realversion beautify_times knownloops );
+@EXPORT_OK = qw( poeloop2load loop2realversion beautify_times knownloops generateTestfile );
+
+# returns the filename for a particular test
+sub generateTestfile {
+	my $heap = shift;
+
+	return	'POE-' . $heap->{'current_version'} .
+		'-' . $heap->{'current_loop'} .
+		'-' . ( $heap->{'lite_tests'} ? 'LITE' : 'HEAVY' ) .
+		'-' . ( $heap->{'current_assertions'} ? 'assert' : 'noassert' ) .
+		'-' . ( $heap->{'current_noxsqueue'} ? 'noxsqueue' : 'xsqueue' );
+}
 
 # returns the proper "load" stuff for a specific loop
 sub poeloop2load {

@@ -1,5 +1,12 @@
 Revision history for Perl extension POE::Devel::Benchmarker
 
+* 0.04
+
+	Started work on the image generator ( Imager )
+	Added automatic "pick up where we left off" to the benchmarker
+	Added the freshstart option to benchmark()
+	Tweaked the GetPOEdists sub so it will work in the "work directory" and in the poedists dir
+
 * 0.03
 
 	Added the loop option to benchmark(), thanks dngor!

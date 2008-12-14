@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.03';
+$VERSION = '0.04';
 
 # auto-export the only sub we have
 BEGIN {
@@ -178,11 +178,11 @@ sub Got_CLOSED : State {
 __END__
 =head1 NAME
 
+POE::Devel::Benchmarker::GetInstalledLoops - Automatically detects the installed POE loops
+
 =head1 SYNOPSIS
 
 	Don't use this module directly. Please use POE::Devel::Benchmarker.
-
-POE::Devel::Benchmarker::GetInstalledLoops - Automatically detects the installed POE loops
 
 =head1 ABSTRACT
 

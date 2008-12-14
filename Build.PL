@@ -37,6 +37,9 @@ my $build = Module::Build->new(
 		'HTML::LinkExtor'		=> 0,
 		'URI::URL'			=> 0,
 		'Archive::Tar'			=> 0,
+
+		# Imager reqs
+		'Chart::Clicker'		=> 0,
 	},
 
 	'recommends'		=> {

@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.03';
+$VERSION = '0.04';
 
 # auto-export the only sub we have
 BEGIN {
@@ -26,9 +26,12 @@ use Time::HiRes qw( time );
 # load comparison stuff
 use version;
 
+# use the power of YAML
+use YAML::Tiny;
+
 # Load our stuff
 use POE::Devel::Benchmarker::GetInstalledLoops;
-use POE::Devel::Benchmarker::Utils qw( poeloop2load knownloops );
+use POE::Devel::Benchmarker::Utils qw( poeloop2load knownloops generateTestfile );
 use POE::Devel::Benchmarker::Analyzer;
 
 # Actually run the tests!
@@ -42,9 +45,17 @@ sub benchmark {
 	my $forcepoe = undef;	# default to all found POE versions in poedists/
 	my $forcenoxsqueue = 0;	# default to try and load it
 	my $forcenoasserts = 0;	# default is to run it
+	my $freshstart = 0;	# always resume where we left off
 
 	# process our options
 	if ( defined $options and ref $options and ref( $options ) eq 'HASH' ) {
+		# process YES for freshstart
+		if ( exists $options->{'freshstart'} ) {
+			if ( $options->{'freshstart'} ) {
+				$freshstart = 1;
+			}
+		}
+
 		# process NO for XS::Queue::Array
 		if ( exists $options->{'noxsqueue'} ) {
 			if ( $options->{'noxsqueue'} ) {
@@ -145,6 +156,7 @@ sub benchmark {
 			'forcepoe'		=> $forcepoe,
 			'forcenoxsqueue'	=> $forcenoxsqueue,
 			'forcenoasserts'	=> $forcenoasserts,
+			'freshstart'		=> $freshstart,
 		},
 	);
 
@@ -352,9 +364,59 @@ sub bench_xsqueue : State {
 		# yay, go back to the assert handler
 		$_[KERNEL]->yield( 'bench_asserts' );
 	} else {
-		# actually fire off the subprocess, ha!
-		$_[KERNEL]->yield( 'create_subprocess' );
+		# do some careful analysis
+		$_[KERNEL]->yield( 'bench_checkprevioustest' );
 	}
+
+	return;
+}
+
+# Checks to see if this test was run in the past
+sub bench_checkprevioustest : State {
+	# okay, do we need to check and see if we already did this test?
+	if ( ! $_[HEAP]->{'freshstart'} ) {
+		# determine the file used
+		my $file = generateTestfile( $_[HEAP] );
+
+		# does it exist?
+		if ( -e "results/$file.yml" and -f _ and -s _ ) {
+			# okay, sanity check it
+			my $yaml = YAML::Tiny->read( "results/$file.yml" );
+			if ( defined $yaml ) {
+				# inrospect it!
+				my $isvalid = 0;
+				eval {
+					# the version must at least match us
+					$isvalid = ( $yaml->[0]->{'benchmarker'} eq $POE::Devel::Benchmarker::VERSION ? 1 : 0 );
+					if ( $isvalid ) {
+						# simple sanity check: the "uname" param is at the end of the YML, so if it loads fine we know it's there
+						if ( ! exists $yaml->[0]->{'uname'} ) {
+							$isvalid = undef;
+						}
+					}
+				};
+				if ( $isvalid ) {
+					# yay, this test is A-OK!
+					$_[KERNEL]->yield( 'bench_xsqueue' );
+					return;
+				} else {
+					# was it truncated?
+					if ( ! defined $isvalid ) {
+						if ( ! $_[HEAP]->{'quiet_mode'} ) {
+							print "[BENCHMARKER] YAML file($file) from previous test was corrupt!\n";
+						}
+					}
+				}
+			} else {
+				if ( ! $_[HEAP]->{'quiet_mode'} ) {
+					print "[BENCHMARKER] Unable to load YAML file($file) from previous test run: " . YAML::Tiny->errstr . "\n";
+				}
+			}
+		}
+	}
+
+	# could not find previous file or FRESHSTART, proceed normally
+	$_[KERNEL]->yield( 'create_subprocess' );
 
 	return;
 }
@@ -363,11 +425,7 @@ sub bench_xsqueue : State {
 sub create_subprocess : State {
 	# Okay, start testing this specific combo!
 	if ( ! $_[HEAP]->{'quiet_mode'} ) {
-		print "Testing POE v" . $_[HEAP]->{'current_version'} .
-			" loop(" . $_[HEAP]->{'current_loop'} . ')' .
-			" assertions(" . ( $_[HEAP]->{'current_assertions'} ? 'ENABLED' : 'DISABLED' ) . ')' .
-			" xsqueue(" . ( $_[HEAP]->{'current_noxsqueue'} ? 'DISABLED' : 'ENABLED' ) . ')' .
-			"\n";
+		print "Testing " . generateTestfile( $_[HEAP] ) . "\n";
 	}
 
 	# save the starttime
@@ -508,11 +566,7 @@ sub wrapup_test : State {
 	$_[HEAP]->{'current_endtimes'} = [ times() ];
 
 	# store the data
-	my $file = 'POE-' . $_[HEAP]->{'current_version'} .
-		'-' . $_[HEAP]->{'current_loop'} .
-		( $_[HEAP]->{'current_assertions'} ? '-assert' : '-noassert' ) .
-		( $_[HEAP]->{'current_noxsqueue'} ? '-noxsqueue' : '-xsqueue' );
-
+	my $file = generateTestfile( $_[HEAP] );
 	if ( open( my $fh, '>', "results/$file" ) ) {
 		print $fh "STARTTIME: " . $_[HEAP]->{'current_starttime'} . " -> TIMES " . join( " ", @{ $_[HEAP]->{'current_starttimes'} } ) . "\n";
 		print $fh "$file\n";
@@ -540,6 +594,7 @@ sub wrapup_test : State {
 		'timedout'	=> $_[HEAP]->{'test_timedout'},
 		'rawdata'	=> $_[HEAP]->{'current_data'},
 		'test_file'	=> $file,
+		'benchmarker'	=> $POE::Devel::Benchmarker::VERSION,
 	} );
 
 	# process the next test
@@ -556,7 +611,8 @@ POE::Devel::Benchmarker - Benchmarking POE's performance ( acts more like a smok
 
 =head1 SYNOPSIS
 
-	perl -MPOE::Devel::Benchmarker -e 'benchmark()'
+	apoc@apoc-x300:~$ cd poe-benchmarker
+	apoc@apoc-x300:~/poe-benchmarker$ perl -MPOE::Devel::Benchmarker -e 'benchmark()'
 
 =head1 ABSTRACT
 
@@ -636,10 +692,8 @@ I have chosen to use ~/poe-benchmarker:
 
 	apoc@apoc-x300:~$ mkdir poe-benchmarker
 	apoc@apoc-x300:~$ cd poe-benchmarker
-	apoc@apoc-x300:~/poe-benchmarker$ mkdir poedists
-	apoc@apoc-x300:~/poe-benchmarker$ mkdir results
-	apoc@apoc-x300:~/poe-benchmarker$ cd poedists/
-	apoc@apoc-x300:~/poe-benchmarker/poedists$ perl -MPOE::Devel::Benchmarker::GetPOEdists -e 'getPOEdists( 1 )'
+	apoc@apoc-x300:~/poe-benchmarker$ mkdir poedists results images
+	apoc@apoc-x300:~/poe-benchmarker$ perl -MPOE::Devel::Benchmarker::GetPOEdists -e 'getPOEdists( 1 )'
 
 	( go get a coffee while it downloads if you're on a slow link, ha! )
 
@@ -669,6 +723,14 @@ This module exposes only one subroutine, the benchmark() one. You can pass a has
 a list of the valid options:
 
 =over 4
+
+=item freshstart => boolean
+
+This will tell the Benchmarker to ignore any previous test runs stored in the 'results' directory.
+
+	benchmark( { freshstart => 1 } );
+
+default: false
 
 =item noxsqueue => boolean
 
@@ -734,25 +796,7 @@ NOTE: The Benchmarker will ignore versions that wasn't found in the directory!
 
 =head2 ANALYZING RESULTS
 
-Please look at the L<POE::Devel::Benchmarker::Analyzer> module.
-
-=head2 HOW DO I?
-
-This section will explain the miscellaneous questions and preemptively answer any concerns :)
-
-=head3 Skip a specific benchmark
-
-Why would you want to? That's the whole point of this suite!
-
-=head3 Create graphs
-
-This will be added to the module soon. However if you have the time+energy, please feel free to dig into the YAML output
-that Benchmarker::Analyzer outputs.
-
-=head3 Restarting where the Benchmarker left off
-
-This isn't implemented yet. You could always manually delete the POE versions that was tested and proceed with the rest. Or,
-use the 'poe' option to benchmark() and tweak the values.
+Please look at the pretty charts generated by the L<POE::Devel::Benchmarker::Imager> module.
 
 =head1 EXPORT
 

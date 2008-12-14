@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.03';
+$VERSION = '0.04';
 
 # auto-export the only sub we have
 require Exporter;
@@ -22,6 +22,21 @@ use Archive::Tar;
 sub getPOEdists {
 	# should we debug?
 	my $debug = shift;
+
+	# okay, should we change directory?
+	if ( -d 'poedists' ) {
+		if ( $debug ) {
+			print "[GETPOEDISTS] chdir( 'poedists' )\n";
+		}
+
+		if ( ! chdir( 'poedists' ) ) {
+			die "Unable to chdir to 'poedists' dir: $!";
+		}
+	} else {
+		if ( $debug ) {
+			print "[GETPOEDISTS] downloading to current directory\n";
+		}
+	}
 
 	# set the default URL
 	my $url = "http://backpan.cpan.org/authors/id/R/RC/RCAPUTO/";
@@ -82,7 +97,8 @@ POE::Devel::Benchmarker::GetPOEdists - Automatically download all POE tarballs
 
 =head1 SYNOPSIS
 
-	perl -MPOE::Devel::Benchmarker::GetPOEdists -e 'getPOEdists()'
+	apoc@apoc-x300:~$ cd poe-benchmarker
+	apoc@apoc-x300:~/poe-benchmarker$ perl -MPOE::Devel::Benchmarker::GetPOEdists -e 'getPOEdists()'
 
 =head1 ABSTRACT
 
