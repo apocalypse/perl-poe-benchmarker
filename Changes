@@ -3,8 +3,13 @@ Revision history for Perl extension POE::Devel::Benchmarker
 * 0.03
 
 	Added the loop option to benchmark(), thanks dngor!
-	More redocumentation
+	Added the poe option to benchmark(), thanks dngor!
+	Added the noxsqueue option to benchmark()
+	Added the noasserts option to benchmark()
+	Automatically enable noxsqueue option if we cannot load POE::XS::Queue::Array, saving time
 	Bump Test::More version requirement because some people reported failures with note()
+	Fixed bug in SubProcess where it crashed on old POEs that didn't load IO::Handle
+	More documentation additions/tweaks
 
 * 0.02
 

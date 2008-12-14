@@ -67,6 +67,9 @@ my $build = Module::Build->new(
 		'Gtk'				=> 0,
 		'Wx'				=> 0,
 		'Tk'				=> 0,
+
+		# the XS queue
+		'POE::XS::Queue::Array'		=> 0,
 	},
 
 	# FIXME wishlist...

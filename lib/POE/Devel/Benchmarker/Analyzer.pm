@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.01';
+$VERSION = '0.03';
 
 # auto-export the only sub we have
 BEGIN {
@@ -146,8 +146,7 @@ sub analyze : State {
 			}
 
 		# data that we can safely throw away
-		} elsif ( 	$l eq 'TEST TERMINATED DUE TO TIMEOUT' or
-				$l eq 'Using NO Assertions!' or
+		} elsif ( 	$l eq 'Using NO Assertions!' or
 				$l eq 'Using FULL Assertions!' or
 				$l eq 'Using the LITE tests' or
 				$l eq 'Using the HEAVY tests' or
@@ -155,7 +154,9 @@ sub analyze : State {
 				$l eq '!STDERR: Devel::Hide hides POE/XS/Queue/Array.pm' or
 				$l eq 'LETTING POE find POE::XS::Queue::Array' or
 				$l eq 'UNABLE TO GET /proc/self/status' or
-				$l eq 'UNABLE TO GET /proc/cpuinfo' ) {
+				$l eq 'UNABLE TO GET /proc/cpuinfo' or
+				$l eq '!STDERR: POE::Kernel\'s run() method was never called.' or	# to ignore old POEs that threw this warning
+				$l eq 'TEST TERMINATED DUE TO TIMEOUT' ) {
 			# ignore them
 
 		# parse the perl binary stuff

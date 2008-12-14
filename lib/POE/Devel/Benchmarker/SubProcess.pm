@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.02';
+$VERSION = '0.03';
 
 # Import Time::HiRes's time()
 use Time::HiRes qw( time );
@@ -29,6 +29,8 @@ BEGIN {
 
 # load POE
 use POE;
+use POE::Session;
+use IO::Handle;
 
 # load our utility stuff
 use POE::Devel::Benchmarker::Utils qw( loop2realversion poeloop2load );
