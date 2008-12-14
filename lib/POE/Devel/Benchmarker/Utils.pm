@@ -104,10 +104,10 @@ sub beautify_times {
 	# make the data struct
 	# ($user,$system,$cuser,$csystem) = times;
 	my $data = {
-		'user'		=> $times[4] - $times[0],
-		'sys'		=> $times[5] - $times[1],
-		'cuser'		=> $times[6] - $times[2],
-		'csys'		=> $times[7] - $times[3],
+		'u'		=> $times[4] - $times[0],
+		's'		=> $times[5] - $times[1],
+		'cu'		=> $times[6] - $times[2],
+		'cs'		=> $times[7] - $times[3],
 	};
 
 	# add original data?
@@ -128,7 +128,8 @@ sub beautify_times {
 
 # returns a list of "known" POE loops
 sub knownloops {
-	return [ qw( Event_Lib EV Glib Prima Gtk Wx Kqueue Tk Select IO_Poll ) ];
+	# FIXME we remove Wx because I suck.
+	return [ qw( Event_Lib EV Glib Prima Gtk Kqueue Tk Select IO_Poll ) ];
 }
 
 1;

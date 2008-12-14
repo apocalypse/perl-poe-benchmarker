@@ -40,6 +40,8 @@ my $build = Module::Build->new(
 
 		# Imager reqs
 		'Chart::Clicker'		=> 0,
+		'Chart::Clicker::Data::DataSet'	=> 0,
+		'Chart::Clicker::Data::Series'	=> 0,
 	},
 
 	'recommends'		=> {

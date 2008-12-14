@@ -172,18 +172,16 @@ sub _start : State {
 	if ( opendir( DISTS, 'poedists' ) ) {
 		foreach my $d ( readdir( DISTS ) ) {
 			if ( $d =~ /^POE\-(.+)$/ and $d !~ /\.tar\.gz$/ ) {
-				push( @versions, $1 );
+				# FIXME skip POE < 0.13 because I can't get it to work
+				my $ver = version->new( $1 );
+				if ( $ver > v0.13 ) {
+					push( @versions, $ver->stringify );
+				}
 			}
 		}
 		closedir( DISTS ) or die $!;
 	} else {
 		print "[BENCHMARKER] Unable to open 'poedists' for reading: $!\n";
-		return;
-	}
-
-	# sanity
-	if ( ! scalar @versions ) {
-		print "[BENCHMARKER] Unable to find any POE version in the 'poedists' directory!\n";
 		return;
 	}
 
@@ -207,12 +205,12 @@ sub _start : State {
 			@good{ @{ $_[HEAP]->{'forcepoe'} } } = () x @{ $_[HEAP]->{'forcepoe'} };
 			@versions = grep { exists $good{$_} } @versions;
 		}
+	}
 
-		# again, make sure we have at least a version, ha!
-		if ( ! scalar @versions ) {
-			print "[BENCHMARKER] Unable to find any POE version in the 'poedists' directory!\n";
-			return;
-		}
+	# sanity
+	if ( ! scalar @versions ) {
+		print "[BENCHMARKER] Unable to find any POE version in the 'poedists' directory!\n";
+		return;
 	}
 
 	# set our alias
@@ -285,6 +283,13 @@ sub found_loops : State {
 
 	# Fire up the analyzer
 	initAnalyzer( $_[HEAP]->{'quiet_mode'} );
+
+	if ( ! $_[HEAP]->{'quiet_mode'} ) {
+		print "[BENCHMARKER] Starting the benchmarks!" .
+			( $_[HEAP]->{'forcenoxsqueue'} ? ' Skipping XS::Queue Tests!' : '' ) .
+			( $_[HEAP]->{'forcenoasserts'} ? ' Skipping ASSERT Tests!' : '' ) .
+			"\n";
+	}
 
 	# start the benchmark!
 	$_[KERNEL]->yield( 'run_benchmark' );
@@ -501,8 +506,11 @@ sub Got_CHLD : State {
 sub Got_STDERR : State {
 	my $input = $_[ARG0];
 
-	# save it!
-	$_[HEAP]->{'current_data'} .= '!STDERR: ' . $input . "\n";
+	# skip empty lines
+	if ( $input ne '' ) {
+		# save it!
+		$_[HEAP]->{'current_data'} .= '!STDERR: ' . $input . "\n";
+	}
 	return;
 }
 
@@ -582,19 +590,24 @@ sub wrapup_test : State {
 
 	# Send the data to the Analyzer to process
 	$_[KERNEL]->post( 'Benchmarker::Analyzer', 'analyze', {
-		'poe_version'	=> $_[HEAP]->{'current_version'}->stringify,	# YAML::Tiny doesn't like version objects :(
-		'poe_loop'	=> 'POE::Loop::' . $_[HEAP]->{'current_loop'},
-		'asserts'	=> $_[HEAP]->{'current_assertions'},
-		'noxsqueue'	=> $_[HEAP]->{'current_noxsqueue'},
-		'litetests'	=> $_[HEAP]->{'lite_tests'},
-		'start_time'	=> $_[HEAP]->{'current_starttime'},
-		'start_times'	=> [ @{ $_[HEAP]->{'current_starttimes'} } ],
-		'end_time'	=> $_[HEAP]->{'current_endtime'},
-		'end_times'	=> [ @{ $_[HEAP]->{'current_endtimes'} } ],
-		'timedout'	=> $_[HEAP]->{'test_timedout'},
-		'rawdata'	=> $_[HEAP]->{'current_data'},
-		'test_file'	=> $file,
+		'poe'		=> {
+			'v'	=> $_[HEAP]->{'current_version'}->stringify,	# YAML::Tiny doesn't like version objects :(
+			'loop'	=> 'POE::Loop::' . $_[HEAP]->{'current_loop'},
+		},
+		't'		=> {
+			's_ts'	=> $_[HEAP]->{'current_starttime'},
+			'e_ts'	=> $_[HEAP]->{'current_endtime'},
+			'd'	=> $_[HEAP]->{'current_endtime'} - $_[HEAP]->{'current_starttime'},
+			's_t'	=> [ @{ $_[HEAP]->{'current_starttimes'} } ],
+			'e_t'	=> [ @{ $_[HEAP]->{'current_endtimes'} } ],
+		},
+		'raw'		=> $_[HEAP]->{'current_data'},
+		'test'		=> $file,
 		'benchmarker'	=> $POE::Devel::Benchmarker::VERSION,
+		( $_[HEAP]->{'test_timedout'} ? ( 'timedout' => 1 ) : () ),
+		( $_[HEAP]->{'lite_tests'} ? ( 'litetests' => 1 ) : () ),
+		( $_[HEAP]->{'current_assertions'} ? ( 'asserts' => 1 ) : () ),
+		( $_[HEAP]->{'current_noxsqueue'} ? ( 'noxsqueue' => 1 ) : () ),
 	} );
 
 	# process the next test
@@ -778,7 +791,7 @@ NOTE: Capitalization is important!
 	benchmark( { 'loop' => [ qw( Tk Gtk ) ] } );	# runs only Tk and Gtk
 	benchmark( { 'loop' => '-Tk' } );		# runs all available loops EXCEPT for TK
 
-Known loops: Event_Lib EV Glib Prima Gtk Wx Kqueue Tk Select IO_Poll
+Known loops: Event_Lib EV Glib Prima Gtk Kqueue Tk Select IO_Poll
 
 =item poe => csv list or array
 

@@ -55,6 +55,9 @@ sub imager {
 	# generate the images!
 	generate_images();
 
+	# for now, we simply freeze up
+	sleep 30;
+
 	return;
 }
 
@@ -78,9 +81,15 @@ sub parse_yaml {
 		die "[IMAGER] Unable to find any POE test result(s) in the 'results' directory!\n";
 	}
 
+	# FIXME allow selective loading of tests, so we can control what to image, etc
+
 	# Parse every one of them!
 	foreach my $v ( @versions ) {
 		load_yaml( "results/$v" );
+	}
+
+	if ( $debug ) {
+		print "[IMAGER] Done with parsing the YAML files...\n";
 	}
 
 	return;
@@ -105,11 +114,19 @@ sub load_yaml {
 sub process_data {
 	# FIXME okay what should we do?
 
+	if ( $debug ) {
+		print "[IMAGER] Done with processing the test statistics...\n";
+	}
+
 	return;
 }
 
 sub generate_images {
 	# FIXME okay what should we do?
+
+	if ( $debug ) {
+		print "[IMAGER] Done with generating images...\n";
+	}
 
 	return;
 }

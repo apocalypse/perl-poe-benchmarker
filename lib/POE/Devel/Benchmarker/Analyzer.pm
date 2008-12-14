@@ -65,35 +65,34 @@ sub analyze : State {
 	my $test = $_[ARG0];
 
 	# clean up the times() stuff
-	$test->{'times'} = beautify_times(
-		join( " ", @{ delete $test->{'start_times'} } ) .
+	$test->{'t'}->{'t'} = beautify_times(
+		join( " ", @{ delete $test->{'t'}->{'s_t'} } ) .
 		" " .
-		join( " ", @{ delete $test->{'end_times'} } )
+		join( " ", @{ delete $test->{'t'}->{'e_t'} } )
 	);
 
 	# setup the perl version
-	$test->{'perlconfig'}->{'v'} = sprintf( "%vd", $^V );
+	$test->{'perl'}->{'v'} = sprintf( "%vd", $^V );
 
 	# Okay, break it down into our data struct
-	$test->{'benchmark'} = {};
-	my $d = $test->{'benchmark'};
+	$test->{'metrics'} = {};
+	my $d = $test->{'metrics'};
 	my @unknown;
-	foreach my $l ( split( /(?:\n|\r)/, $test->{'rawdata'} ) ) {
+	foreach my $l ( split( /(?:\n|\r)/, $test->{'raw'} ) ) {
 		# skip empty lines
 		if ( $l eq '' ) { next }
 
 		# usual test benchmark output
 		#        10 startups             in     0.885 seconds (     11.302 per second)
 		#     10000 posts                in     0.497 seconds (  20101.112 per second)
-		if ( $l =~ /^\s+(\d+)\s+(\w+)\s+in\s+([\d\.]+)\s+seconds\s+\(\s+([\d\.]+)\s+per\s+second\)$/ ) {
-			$d->{ $2 }->{'loops'} = $1;
-			$d->{ $2 }->{'time'} = $3;
-			$d->{ $2 }->{'iterations_per_second'} = $4;
+		if ( $l =~ /^\s+\d+\s+(\w+)\s+in\s+([\d\.]+)\s+seconds\s+\(\s+([\d\.]+)\s+per\s+second\)$/ ) {
+			$d->{ $1 }->{'d'} = $2;		# duration in seconds
+			$d->{ $1 }->{'i'} = $3;		# iterations per second
 
 		# usual test benchmark times output
 		# startup times: 0.1 0 0 0 0.1 0 0.76 0.09
 		} elsif ( $l =~ /^(\w+)\s+times:\s+(.+)$/ ) {
-			$d->{ $1 }->{'times'} = beautify_times( $2 );
+			$d->{ $1 }->{'t'} = beautify_times( $2 );	# the times hash
 
 		# parse the memory footprint stuff
 		} elsif ( $l =~ /^pidinfo:\s+(.+)$/ ) {
@@ -102,15 +101,15 @@ sub analyze : State {
 
 			# VmPeak:	   16172 kB
 			if ( $pidinfo =~ /^VmPeak:\s+(.+)$/ ) {
-				$test->{'pidinfo'}->{'vmpeak'} = $1;
+				$test->{'pid'}->{'vmpeak'} = $1;
 
 			# voluntary_ctxt_switches:	10
 			} elsif ( $pidinfo =~ /^voluntary_ctxt_switches:\s+(.+)$/ ) {
-				$test->{'pidinfo'}->{'voluntary_ctxt'} = $1;
+				$test->{'pid'}->{'vol_ctxt'} = $1;
 
 			# nonvoluntary_ctxt_switches:	1221
 			} elsif ( $pidinfo =~ /^nonvoluntary_ctxt_switches:\s+(.+)$/ ) {
-				$test->{'pidinfo'}->{'nonvoluntary_ctxt'} = $1;
+				$test->{'pid'}->{'nonvol_ctxt'} = $1;
 
 			} else {
 				# ignore the rest of the fluff
@@ -122,7 +121,7 @@ sub analyze : State {
 
 			# Summary of my perl5 (revision 5 version 8 subversion 8) configuration:
 			if ( $perlconfig =~ /^Summary\s+of\s+my\s+perl\d\s+\(([^\)]+)\)/ ) {
-				$test->{'perlconfig'}->{'version'} = $1;
+				$test->{'perl'}->{'version'} = $1;
 
 			} else {
 				# ignore the rest of the fluff
@@ -137,15 +136,15 @@ sub analyze : State {
 
 			# cpu MHz		: 1201.000
 			if ( $cpuinfo =~ /^cpu\s+MHz\s+:\s+(.+)$/ ) {
-				$test->{'cpuinfo'}->{'mhz'} = $1;
+				$test->{'cpu'}->{'mhz'} = $1;
 
 			# model name	: Intel(R) Core(TM)2 Duo CPU     L7100  @ 1.20GHz
 			} elsif ( $cpuinfo =~ /^model\s+name\s+:\s+(.+)$/ ) {
-				$test->{'cpuinfo'}->{'name'} = $1;
+				$test->{'cpu'}->{'name'} = $1;
 
 			# bogomips	: 2397.58
 			} elsif ( $cpuinfo =~ /^bogomips\s+:\s+(.+)$/ ) {
-				$test->{'cpuinfo'}->{'bogomips'} = $1;
+				$test->{'cpu'}->{'bogo'} = $1;
 
 			} else {
 				# ignore the rest of the fluff
@@ -167,24 +166,24 @@ sub analyze : State {
 
 		# parse the perl binary stuff
 		} elsif ( $l =~ /^Running\s+under\s+perl\s+binary:\s+(.+)$/ ) {
-			$test->{'perlconfig'}->{'binary'} = $1;
+			$test->{'perl'}->{'binary'} = $1;
 
 		# the master loop version ( what the POE::Loop::XYZ actually uses )
 		# Using loop: EV-3.49
 		} elsif ( $l =~ /^Using\s+master\s+loop:\s+(.+)$/ ) {
-			$test->{'poe_loop_master'} = $1;
+			$test->{'poe'}->{'loop_m'} = $1;
 
 		# the real POE version that was loaded
 		# Using POE-1.001
 		} elsif ( $l =~ /^Using\s+POE-(.+)$/ ) {
-			$test->{'poe_version_loaded'} = $1;
+			$test->{'poe'}->{'v_real'} = $1;
 
 		# the various queue/loop modules we loaded
 		# POE is using: POE::XS::Queue::Array v0.005
 		# POE is using: POE::Queue v1.2328
 		# POE is using: POE::Loop::EV v0.06
 		} elsif ( $l =~ /^POE\s+is\s+using:\s+([^\s]+)\s+v(.+)$/ ) {
-			$test->{'poe_modules'}->{ $1 } = $2;
+			$test->{'poe'}->{'modules'}->{ $1 } = $2;
 
 		# get the uname info
 		# Running under machine: Linux apoc-x300 2.6.24-21-generic #1 SMP Tue Oct 21 23:43:45 UTC 2008 i686 GNU/Linux
@@ -199,10 +198,9 @@ sub analyze : State {
 
 			# nullify the data struct for that
 			foreach my $type ( qw( select_read select_write ) ) {
-				$d->{ $type . $fh }->{'loops'} = undef;
-				$d->{ $type . $fh }->{'time'} = undef;
-				$d->{ $type . $fh }->{'times'} = undef;
-				$d->{ $type . $fh }->{'iterations_per_second'} = undef;
+				$d->{ $type . $fh }->{'d'} = undef;
+				$d->{ $type . $fh }->{'t'} = undef;
+				$d->{ $type . $fh }->{'i'} = undef;
 			}
 
 		# parse the FH/STDIN failures
@@ -212,20 +210,18 @@ sub analyze : State {
 			my( $mode, $type ) = ( $1, $2 );
 
 			# nullify the data struct for that
-			$d->{ $mode . $type }->{'loops'} = undef;
-			$d->{ $mode . $type }->{'time'} = undef;
-			$d->{ $mode . $type }->{'times'} = undef;
-			$d->{ $mode . $type }->{'iterations_per_second'} = undef;
+			$d->{ $mode . $type }->{'d'} = undef;
+			$d->{ $mode . $type }->{'t'} = undef;
+			$d->{ $mode . $type }->{'i'} = undef;
 
 		# parse the alarm_add skip
 		# alarm_add NOT SUPPORTED on this version of POE, skipping alarm_adds/alarm_clears tests!
 		} elsif ( $l =~ /^alarm_add\s+NOT\s+SUPPORTED\s+on/ ) {
 			# nullify the data struct for that
 			foreach my $type ( qw( alarm_adds alarm_clears ) ) {
-				$d->{ $type }->{'loops'} = undef;
-				$d->{ $type }->{'time'} = undef;
-				$d->{ $type }->{'times'} = undef;
-				$d->{ $type }->{'iterations_per_second'} = undef;
+				$d->{ $type }->{'d'} = undef;
+				$d->{ $type }->{'t'} = undef;
+				$d->{ $type }->{'i'} = undef;
 			}
 
 		# parse any STDERR output
@@ -240,7 +236,7 @@ sub analyze : State {
 	}
 
 	# Get rid of the rawdata
-	delete $test->{'rawdata'};
+	delete $test->{'raw'};
 
 	# Dump the unknowns
 	if ( @unknown ) {
@@ -248,7 +244,7 @@ sub analyze : State {
 	}
 
 	# Dump the data struct we have to the file.yml
-	my $yaml_file = 'results/' . delete $test->{'test_file'};
+	my $yaml_file = 'results/' . delete $test->{'test'};
 	$yaml_file .= '.yml';
 	my $ret = open( my $fh, '>', $yaml_file );
 	if ( defined $ret ) {
@@ -278,6 +274,10 @@ POE::Devel::Benchmarker::Analyzer - Analyzes the output from the benchmarks
 
 This package implements the guts of converting the raw data into a machine-readable format. Furthermore, it dumps the data
 in YAML format.
+
+=head1 DESCRIPTION
+
+I promise you that once I've stabilized the YAML format I'll have it documented here :)
 
 =head1 EXPORT
 
