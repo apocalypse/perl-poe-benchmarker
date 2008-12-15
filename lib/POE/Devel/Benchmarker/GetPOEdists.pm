@@ -7,16 +7,18 @@ use vars qw( $VERSION );
 $VERSION = '0.04';
 
 # auto-export the only sub we have
-require Exporter;
-use vars qw( @ISA @EXPORT );
-@ISA = qw(Exporter);
-@EXPORT = qw( getPOEdists );
+use base qw( Exporter );
+our @EXPORT = qw( getPOEdists );
 
 # import the helper modules
 use LWP::UserAgent;
 use HTML::LinkExtor;
 use URI::URL;
 use Archive::Tar;
+
+# autoflush, please!
+use IO::Handle;
+STDOUT->autoflush( 1 );
 
 # actually retrieves the dists!
 sub getPOEdists {

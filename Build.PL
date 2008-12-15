@@ -30,7 +30,6 @@ my $build = Module::Build->new(
 
 		# Analyzer reqs
 		'YAML::Tiny'			=> 0,
-		#'POE::Component::SimpleDBI'	=> 0,
 
 		# GetPOEdists reqs
 		'LWP::UserAgent'		=> 0,
@@ -39,9 +38,9 @@ my $build = Module::Build->new(
 		'Archive::Tar'			=> 0,
 
 		# Imager reqs
-		'Chart::Clicker'		=> 0,
-		'Chart::Clicker::Data::DataSet'	=> 0,
-		'Chart::Clicker::Data::Series'	=> 0,
+		'GD::Graph::lines'		=> 0,
+		'Class::Accessor::Fast'		=> 0,
+		'Module::Pluggable'		=> 0,
 	},
 
 	'recommends'		=> {

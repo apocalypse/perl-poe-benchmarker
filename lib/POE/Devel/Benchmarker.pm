@@ -7,16 +7,10 @@ use vars qw( $VERSION );
 $VERSION = '0.04';
 
 # auto-export the only sub we have
-BEGIN {
-	require Exporter;
-	use vars qw( @ISA @EXPORT );
-	@ISA = qw(Exporter);
-	@EXPORT = qw( benchmark );
-}
+use base qw( Exporter );
+our @EXPORT = qw( benchmark );
 
 # Import what we need from the POE namespace
-sub POE::Kernel::ASSERT_DEFAULT { 1 }
-sub POE::Session::ASSERT_DEFAULT { 1 }
 use POE qw( Session Filter::Line Wheel::Run );
 use base 'POE::Session::AttributeBased';
 
@@ -174,8 +168,8 @@ sub _start : State {
 			if ( $d =~ /^POE\-(.+)$/ and $d !~ /\.tar\.gz$/ ) {
 				# FIXME skip POE < 0.13 because I can't get it to work
 				my $ver = version->new( $1 );
-				if ( $ver > v0.13 ) {
-					push( @versions, $ver->stringify );
+				if ( $ver > v0.12 ) {
+					push( @versions, $ver );
 				}
 			}
 		}
@@ -198,12 +192,12 @@ sub _start : State {
 			# remove the nopoe versions from the found
 			my %bad;
 			@bad{@nopoe} = () x @nopoe;
-			@versions = grep { !exists $bad{$_} } @versions;
+			@versions = grep { !exists $bad{$_->stringify} } @versions;
 		} else {
 			# make sure the @versions contains only what we specified
 			my %good;
 			@good{ @{ $_[HEAP]->{'forcepoe'} } } = () x @{ $_[HEAP]->{'forcepoe'} };
-			@versions = grep { exists $good{$_} } @versions;
+			@versions = grep { exists $good{$_->stringify} } @versions;
 		}
 	}
 
@@ -221,8 +215,7 @@ sub _start : State {
 	$_[KERNEL]->sig( 'TERM', 'handle_kill' );
 
 	# okay, go through all the dists in version order
-	@versions =	sort { $b <=> $a }
-			map { version->new( $_ ) } @versions;
+	@versions = sort { $a <=> $b } @versions;
 
 	# Store the versions in our heap
 	$_[HEAP]->{'VERSIONS'} = \@versions;
@@ -391,13 +384,12 @@ sub bench_checkprevioustest : State {
 				# inrospect it!
 				my $isvalid = 0;
 				eval {
-					# the version must at least match us
-					$isvalid = ( $yaml->[0]->{'benchmarker'} eq $POE::Devel::Benchmarker::VERSION ? 1 : 0 );
-					if ( $isvalid ) {
-						# simple sanity check: the "uname" param is at the end of the YML, so if it loads fine we know it's there
-						if ( ! exists $yaml->[0]->{'uname'} ) {
-							$isvalid = undef;
-						}
+					# simple sanity check: the "x_bench" param is at the end of the YML, so if it loads fine we know it's there
+					if ( exists $yaml->[0]->{'x_bench'} ) {
+						# version must at least match us
+						$isvalid = ( $yaml->[0]->{'x_bench'} eq $POE::Devel::Benchmarker::VERSION ? 1 : 0 );
+					} else {
+						$isvalid = undef;
 					}
 				};
 				if ( $isvalid ) {
@@ -603,7 +595,7 @@ sub wrapup_test : State {
 		},
 		'raw'		=> $_[HEAP]->{'current_data'},
 		'test'		=> $file,
-		'benchmarker'	=> $POE::Devel::Benchmarker::VERSION,
+		'x_bench'	=> $POE::Devel::Benchmarker::VERSION,
 		( $_[HEAP]->{'test_timedout'} ? ( 'timedout' => 1 ) : () ),
 		( $_[HEAP]->{'lite_tests'} ? ( 'litetests' => 1 ) : () ),
 		( $_[HEAP]->{'current_assertions'} ? ( 'asserts' => 1 ) : () ),

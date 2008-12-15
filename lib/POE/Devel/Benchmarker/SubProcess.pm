@@ -30,7 +30,10 @@ BEGIN {
 # load POE
 use POE;
 use POE::Session;
+
+# autoflush, please!
 use IO::Handle;
+STDOUT->autoflush( 1 );
 
 # load our utility stuff
 use POE::Devel::Benchmarker::Utils qw( loop2realversion poeloop2load );
@@ -41,9 +44,6 @@ my( $post_limit, $alarm_limit, $alarm_add_limit, $session_limit, $select_limit, 
 
 # the main routine which will load everything + start
 sub benchmark {
-	# autoflush our STDOUT for sanity
-	STDOUT->autoflush( 1 );
-
 	# process the version
 	process_version();
 
@@ -185,16 +185,18 @@ sub process_POE {
 }
 
 sub run_benchmarks {
+	# dump some misc info
+	dump_perlinfo();
+	dump_sysinfo();
+
 	# run the startup test before we actually run POE
 	bench_startup();
 
 	# load the POE session + do the tests there
 	bench_poe();
 
-	# dump some misc info
+	# okay, dump our memory usage
 	dump_pidinfo();
-	dump_perlinfo();
-	dump_sysinfo();
 
 	# all done!
 	return;

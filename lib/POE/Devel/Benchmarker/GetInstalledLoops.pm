@@ -7,12 +7,8 @@ use vars qw( $VERSION );
 $VERSION = '0.04';
 
 # auto-export the only sub we have
-BEGIN {
-	require Exporter;
-	use vars qw( @ISA @EXPORT );
-	@ISA = qw(Exporter);
-	@EXPORT = qw( getPOEloops );
-}
+use base qw( Exporter );
+our @EXPORT = qw( getPOEloops );
 
 # Import what we need from the POE namespace
 use POE qw( Session Filter::Line Wheel::Run );

@@ -1,13 +1,14 @@
 Revision history for Perl extension POE::Devel::Benchmarker
 
-* 0.04
+* 0.04 Mon Dec 15 15:12:42 2008
 
-	Started work on the image generator ( Imager )
+	Started work on the image generator ( Imager ) and added the BasicStatistics plugin, yay!
 	Added automatic "pick up where we left off" to the benchmarker
 	Added the freshstart option to benchmark()
 	Tweaked the GetPOEdists sub so it will work in the "work directory" and in the poedists dir
 	Tweaked the YAML output so it's smaller
 	Removed POE::Loop::Wx from autoprobing ( I'm unable to get it to work )
+	Removed POE::Loop::Kqueue from autoprobing ( I'm unable to get it to work )
 	Hardcoded the Benchmarker routines to skip POE < 0.13 ( I'm unable to get it to work )
 
 * 0.03

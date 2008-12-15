@@ -6,11 +6,9 @@ use strict; use warnings;
 use vars qw( $VERSION );
 $VERSION = '0.04';
 
-# auto-export the only sub we have
-require Exporter;
-use vars qw( @ISA @EXPORT_OK );
-@ISA = qw(Exporter);
-@EXPORT_OK = qw( poeloop2load loop2realversion beautify_times knownloops generateTestfile );
+# set ourself up for exporting
+use base qw( Exporter );
+our @EXPORT_OK = qw( poeloop2load loop2realversion beautify_times knownloops generateTestfile );
 
 # returns the filename for a particular test
 sub generateTestfile {
@@ -129,7 +127,8 @@ sub beautify_times {
 # returns a list of "known" POE loops
 sub knownloops {
 	# FIXME we remove Wx because I suck.
-	return [ qw( Event_Lib EV Glib Prima Gtk Kqueue Tk Select IO_Poll ) ];
+	# FIXME I have no idea how to load/unload Kqueue...
+	return [ qw( Event_Lib EV Glib Prima Gtk Tk Select IO_Poll ) ];
 }
 
 1;

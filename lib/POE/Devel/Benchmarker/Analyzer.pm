@@ -7,12 +7,8 @@ use vars qw( $VERSION );
 $VERSION = '0.04';
 
 # auto-export the only sub we have
-BEGIN {
-	require Exporter;
-	use vars qw( @ISA @EXPORT );
-	@ISA = qw(Exporter);
-	@EXPORT = qw( initAnalyzer );
-}
+use base qw( Exporter );
+our @EXPORT = qw( initAnalyzer );
 
 # Import what we need from the POE namespace
 use POE qw( Session );
@@ -119,13 +115,7 @@ sub analyze : State {
 			# what should we analyze?
 			my $perlconfig = $1;
 
-			# Summary of my perl5 (revision 5 version 8 subversion 8) configuration:
-			if ( $perlconfig =~ /^Summary\s+of\s+my\s+perl\d\s+\(([^\)]+)\)/ ) {
-				$test->{'perl'}->{'version'} = $1;
-
-			} else {
-				# ignore the rest of the fluff
-			}
+			# ignore the fluff ( not needed now... )
 
 		# parse the CPU info
 		} elsif ( $l =~ /^cpuinfo:\s+(.+)$/ ) {
