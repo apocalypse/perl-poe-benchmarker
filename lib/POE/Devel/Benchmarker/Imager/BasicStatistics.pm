@@ -9,6 +9,9 @@ $VERSION = '0.05';
 # the GD stuff
 use GD::Graph::lines;
 
+# import some stuff
+use POE::Devel::Benchmarker::Utils qw( currentMetrics );
+
 # creates a new instance
 sub new {
 	my $class = shift;
@@ -48,7 +51,7 @@ sub generate_loopoptions {
 
 	# go through all the loops we want
 	foreach my $loop ( keys %{ $self->{'imager'}->poe_loops } ) {
-		foreach my $metric ( qw( alarms dispatches posts single_posts startups select_read_MYFH select_write_MYFH select_read_STDIN select_write_STDIN ) ) {
+		foreach my $metric ( @{ currentMetrics() } ) {
 			my %data;
 
 			# organize data by POE version
@@ -114,7 +117,7 @@ sub generate_loopperf {
 
 				# organize data by POE version
 				foreach my $poe ( @{ $self->{'imager'}->poe_versions_sorted } ) {
-					foreach my $metric ( qw( alarms dispatches posts single_posts startups select_read_MYFH select_write_MYFH select_read_STDIN select_write_STDIN ) ) {
+					foreach my $metric ( @{ currentMetrics() } ) {
 						if ( exists $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
 							and defined $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
 							) {
@@ -154,7 +157,7 @@ sub generate_loopwars {
 	}
 
 	# go through all the metrics we want
-	foreach my $metric ( qw( alarms dispatches posts single_posts startups select_read_MYFH select_write_MYFH select_read_STDIN select_write_STDIN ) ) {
+	foreach my $metric ( @{ currentMetrics() } ) {
 		# go through the combo of assert/xsqueue
 		foreach my $assert ( qw( assert noassert ) ) {
 			foreach my $xsqueue ( qw( xsqueue noxsqueue ) ) {
@@ -271,7 +274,7 @@ This plugin for Imager generates some kinds of graphs from the benchmark tests.
 
 This package generates some basic graphs from the statistics output. Since the POE::Loop::* modules really are responsible
 for the backend logic of POE, it makes sense to graph all related metrics of a single loop across POE versions to see if
-it performs differently. The related benchmark metrics are: events, alarms, filehandles, and startup.
+it performs differently.
 
 This will generate some types of graphs:
 
@@ -303,7 +306,7 @@ Nothing.
 
 =head1 SEE ALSO
 
-L<POE::Devel::Benchmarker::Imager>
+L<POE::Devel::Benchmarker>
 
 =head1 AUTHOR
 

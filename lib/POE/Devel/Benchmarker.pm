@@ -10,12 +10,12 @@ $VERSION = '0.05';
 use base qw( Exporter );
 our @EXPORT = qw( benchmark );
 
+# we need hires times
+use Time::HiRes qw( time );
+
 # Import what we need from the POE namespace
 use POE qw( Session Filter::Line Wheel::Run );
 use base 'POE::Session::AttributeBased';
-
-# we need hires times
-use Time::HiRes qw( time );
 
 # load comparison stuff
 use version;
@@ -48,6 +48,7 @@ sub benchmark {
 			if ( $options->{'freshstart'} ) {
 				$freshstart = 1;
 			}
+			delete $options->{'freshstart'};
 		}
 
 		# process NO for XS::Queue::Array
@@ -55,6 +56,7 @@ sub benchmark {
 			if ( $options->{'noxsqueue'} ) {
 				$forcenoxsqueue = 1;
 			}
+			delete $options->{'noxsqueue'};
 		}
 
 		# process NO for ASSERT
@@ -62,6 +64,7 @@ sub benchmark {
 			if ( $options->{'noasserts'} ) {
 				$forcenoasserts = 1;
 			}
+			delete $options->{'noasserts'};
 		}
 
 		# process LITE tests
@@ -71,6 +74,7 @@ sub benchmark {
 			} else {
 				$lite_tests = 0;
 			}
+			delete $options->{'litetests'};
 		}
 
 		# process quiet mode
@@ -80,6 +84,7 @@ sub benchmark {
 			} else {
 				$quiet_mode = 0;
 			}
+			delete $options->{'quiet'};
 		}
 
 		# process forceloops
@@ -108,6 +113,8 @@ sub benchmark {
 				@bad{@noloops} = () x @noloops;
 				@$forceloops = grep { !exists $bad{$_} } @{ knownloops() };
 			}
+
+			delete $options->{'loop'};
 		}
 
 		# process the poe versions
@@ -122,6 +129,13 @@ sub benchmark {
 				# treat it as array
 				$forcepoe = $options->{'poe'};
 			}
+
+			delete $options->{'poe'};
+		}
+
+		# unknown options!
+		if ( scalar keys %$options ) {
+			warn "[BENCHMARKER] Unknown options present in arguments: " . keys %$options;
 		}
 	}
 
@@ -168,7 +182,7 @@ sub _start : State {
 			if ( $d =~ /^POE\-(.+)$/ and $d !~ /\.tar\.gz$/ ) {
 				# FIXME skip POE < 0.13 because I can't get it to work
 				my $ver = version->new( $1 );
-				if ( $ver > v0.12 ) {
+				if ( $ver > version->new( '0.12' ) ) {
 					push( @versions, $ver );
 				}
 			}
@@ -238,7 +252,7 @@ sub _stop : State {
 	}
 
 	if ( ! $_[HEAP]->{'quiet_mode'} ) {
-		print "[BENCHMARKER] Shutting down...\n";
+		print "\n[BENCHMARKER] Shutting down...\n";
 	}
 
 	return;
@@ -400,13 +414,13 @@ sub bench_checkprevioustest : State {
 					# was it truncated?
 					if ( ! defined $isvalid ) {
 						if ( ! $_[HEAP]->{'quiet_mode'} ) {
-							print "[BENCHMARKER] YAML file($file) from previous test was corrupt!\n";
+							print "\n[BENCHMARKER] YAML file($file) from previous test was corrupt!\n";
 						}
 					}
 				}
 			} else {
 				if ( ! $_[HEAP]->{'quiet_mode'} ) {
-					print "[BENCHMARKER] Unable to load YAML file($file) from previous test run: " . YAML::Tiny->errstr . "\n";
+					print "\n[BENCHMARKER] Unable to load YAML file($file) from previous test run: " . YAML::Tiny->errstr . "\n";
 				}
 			}
 		}
@@ -422,7 +436,7 @@ sub bench_checkprevioustest : State {
 sub create_subprocess : State {
 	# Okay, start testing this specific combo!
 	if ( ! $_[HEAP]->{'quiet_mode'} ) {
-		print "Testing " . generateTestfile( $_[HEAP] ) . "\n";
+		print "\n Testing " . generateTestfile( $_[HEAP] ) . "...";
 	}
 
 	# save the starttime
@@ -477,11 +491,11 @@ sub create_subprocess : State {
 	# Okay, we timeout this test after some time for sanity
 	$_[HEAP]->{'test_timedout'} = 0;
 	if ( $_[HEAP]->{'lite_tests'} ) {
-		# on my core2duo 1.2ghz laptop, running Gtk+LITE+assert+noxsqueue takes approx 45s
-		$_[HEAP]->{'TIMER'} = $_[KERNEL]->delay_set( 'test_timedout' => 60 * 2 );
+		# 5min timeout is 5x my average runs on a 1.2ghz core2duo so it should be good enough
+		$_[HEAP]->{'TIMER'} = $_[KERNEL]->delay_set( 'test_timedout' => 60 * 5 );
 	} else {
-		# on my core2duo 1.2ghz laptop, running Gtk+HEAVY+assert+noxsqueue takes all day long :(
-		$_[HEAP]->{'TIMER'} = $_[KERNEL]->delay_set( 'test_timedout' => 60 * 15 );
+		# 30min timeout is 2x my average runs on a 1.2ghz core2duo so it should be good enough
+		$_[HEAP]->{'TIMER'} = $_[KERNEL]->delay_set( 'test_timedout' => 60 * 30 );
 	}
 
 	return;
@@ -521,7 +535,7 @@ sub Got_ERROR : State {
 
 	# ignore exit 0 errors
 	if ( $errnum != 0 ) {
-		print "[BENCHMARKER] Wheel::Run got an $operation error $errnum: $errstr\n";
+		print "\n[BENCHMARKER] Wheel::Run got an $operation error $errnum: $errstr\n";
 	}
 
 	return;
@@ -548,7 +562,7 @@ sub test_timedout : State {
 	undef $_[HEAP]->{'WHEEL'};
 
 	if ( ! $_[HEAP]->{'quiet_mode'} ) {
-		print "[BENCHMARKER] Test Timed Out!\n";
+		print " Test Timed Out!";
 	}
 
 	$_[HEAP]->{'test_timedout'} = 1;
@@ -576,7 +590,7 @@ sub wrapup_test : State {
 		print $fh "ENDTIME: " . $_[HEAP]->{'current_endtime'} . " -> TIMES " . join( " ", @{ $_[HEAP]->{'current_endtimes'} } ) . "\n";
 		close( $fh ) or die $!;
 	} else {
-		print "[BENCHMARKER] Unable to open results/$file for writing -> $!\n";
+		print "\n[BENCHMARKER] Unable to open results/$file for writing -> $!\n";
 	}
 
 	# Send the data to the Analyzer to process
@@ -625,39 +639,53 @@ configurations. The current "tests" are:
 
 =over 4
 
-=item posts
+=item Events
 
-This tests how long it takes to post() N times
+posts: This tests how long it takes to post() N times
 
-This tests how long it took to dispatch/deliver all the posts enqueued in the post() test
+dispatches: This tests how long it took to dispatch/deliver all the posts enqueued in the "posts" test
 
-This tests how long it took to yield() between 2 states for N times
+single_posts: This tests how long it took to yield() between 2 states for N times
 
-=item calls
+calls: This tests how long it took to call() N times
 
-This tests how long it took to call() N times
+=item Alarms
 
-=item alarms
+alarms: This tests how long it took to add N alarms via alarm(), overwriting each other
 
-This tests how long it took to add N alarms via alarm(), overwriting each other
+alarm_adds: This tests how long it took to add N alarms via alarm_add()
 
-This tests how long it took to add N alarms via alarm_add() and how long it took to delete them all
+alarm_clears: This tests how long it took to clear all alarms set in the "alarm_adds" test
 
 NOTE: alarm_add is not available on all versions of POE!
 
-=item sessions
+=item Sessions
 
-This tests how long it took to create N sessions, and how long it took to destroy them all
+session_creates: This tests how long it took to create N sessions
 
-=item filehandles
+session_destroys: This tests how long it took to destroy all sessions created in the "session_creates" test
 
-This tests how long it took to toggle select_read N times on STDIN and a real filehandle via open()
+=item Filehandles
 
-This tests how long it took to toggle select_write N times on STDIN and a real filehandle via open()
+select_read_STDIN: This tests how long it took to toggle select_read N times on STDIN
+
+select_write_STDIN: This tests how long it took to toggle select_write N times on STDIN
+
+select_read_MYFH: This tests how long it took to toggle select_read N times on a real filehandle
+
+select_write_MYFH: This tests how long it took to toggle select_write N times on a real filehandle
+
+NOTE: The MYFH tests don't include the time it took to open()/close() the file :)
+
+=item Sockets
+
+socket_connects: This tests how long it took to connect+disconnect to a SocketFactory server via localhost
+
+socket_stream: This tests how long it took to send N chunks of data in a "ping-pong" fashion between the server and client
 
 =item POE startup time
 
-This tests how long it took to start + close N instances of a "virgin" POE without any sessions/etc
+startups: This tests how long it took to start + close N instances of POE+Loop without any sessions/etc via system()
 
 =item POE Loops
 
@@ -667,9 +695,13 @@ This is actually a "super" test where all of the specific tests is ran against v
 
 This is actually a "super" test where all of the specific tests is ran against POE with/without assertions enabled
 
+NOTE: Not all versions of POE support assertions!
+
 =item POE::XS::Queue::Array
 
 This is actually a "super" test where all of the specific tests is ran against POE with XS goodness enabled/disabled
+
+NOTE: Not all versions of POE support XS::Queue::Array!
 
 =back
 
@@ -838,9 +870,9 @@ drop me a line and let me know!
 
 dngor said there was some benchmarks in the POE svn under trunk/queue...
 
-I want a bench that actually tests socket traffic - stream 10MB of traffic over localhost, and time it?
+Tapout contributed a script that tests HTTP performance, let's see if it deserves to be in the suite :)
 
-LotR and Tapout contributed some samples, let's see if I can integrate them...
+I added the preliminary socket tests, we definitely should expand it seeing how many people use POE for networking...
 
 =item Add SQLite/DBI/etc support to the Analyzer
 

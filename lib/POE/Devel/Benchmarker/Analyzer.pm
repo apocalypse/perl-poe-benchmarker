@@ -38,18 +38,10 @@ sub _start : State {
 	# set our alias
 	$_[KERNEL]->alias_set( 'Benchmarker::Analyzer' );
 
-	if ( ! $_[HEAP]->{'quiet_mode'} ) {
-		print "[ANALYZER] Starting up...\n";
-	}
-
 	return;
 }
 
 sub _stop : State {
-	if ( ! $_[HEAP]->{'quiet_mode'} ) {
-		print "[ANALYZER] Shutting down...\n";
-	}
-
 	return;
 }
 sub _child : State {
@@ -66,9 +58,6 @@ sub analyze : State {
 		" " .
 		join( " ", @{ delete $test->{'t'}->{'e_t'} } )
 	);
-
-	# setup the perl version
-	$test->{'perl'}->{'v'} = sprintf( "%vd", $^V );
 
 	# Okay, break it down into our data struct
 	$test->{'metrics'} = {};
@@ -89,6 +78,14 @@ sub analyze : State {
 		# startup times: 0.1 0 0 0 0.1 0 0.76 0.09
 		} elsif ( $l =~ /^(\w+)\s+times:\s+(.+)$/ ) {
 			$d->{ $1 }->{'t'} = beautify_times( $2 );	# the times hash
+
+		# usual test SKIP output
+		# SKIPPING br0ken $metric because ...
+		} elsif ( $l =~ /^SKIPPING\s+br0ken\s+(\w+)\s+because/ ) {
+			# nullify the data struct for that
+			$d->{ $1 }->{'d'} = undef;
+			$d->{ $1 }->{'t'} = undef;
+			$d->{ $1 }->{'i'} = undef;
 
 		# parse the memory footprint stuff
 		} elsif ( $l =~ /^pidinfo:\s+(.+)$/ ) {
@@ -155,8 +152,11 @@ sub analyze : State {
 			# ignore them
 
 		# parse the perl binary stuff
-		} elsif ( $l =~ /^Running\s+under\s+perl\s+binary:\s+(.+)$/ ) {
+		} elsif ( $l =~ /^Running\s+under\s+perl\s+binary:\s+\'([^\']+)\'\s+v([\d\.]+)$/ ) {
 			$test->{'perl'}->{'binary'} = $1;
+
+			# setup the perl version
+			$test->{'perl'}->{'v'} = $2;
 
 		# the master loop version ( what the POE::Loop::XYZ actually uses )
 		# Using loop: EV-3.49
@@ -179,40 +179,6 @@ sub analyze : State {
 		# Running under machine: Linux apoc-x300 2.6.24-21-generic #1 SMP Tue Oct 21 23:43:45 UTC 2008 i686 GNU/Linux
 		} elsif ( $l =~ /^Running\s+under\s+machine:\s+(.+)$/ ) {
 			$test->{'uname'} = $1;
-
-		# parse the SKIP tests
-		# SKIPPING MYFH tests on broken loop: Event_Lib
-		# SKIPPING STDIN tests on broken loop: Tk
-		} elsif ( $l =~ /^SKIPPING\s+(\w+)\s+tests\s+on\s+broken/ ) {
-			my $fh = $1;
-
-			# nullify the data struct for that
-			foreach my $type ( qw( select_read select_write ) ) {
-				$d->{ $type . $fh }->{'d'} = undef;
-				$d->{ $type . $fh }->{'t'} = undef;
-				$d->{ $type . $fh }->{'i'} = undef;
-			}
-
-		# parse the FH/STDIN failures
-		# filehandle select_read on STDIN FAILED: error
-		# filehandle select_write on MYFH FAILED: foo
-		} elsif ( $l =~ /^filehandle\s+(\w+)\s+on\s+(\w+)\s+FAILED:/ ) {
-			my( $mode, $type ) = ( $1, $2 );
-
-			# nullify the data struct for that
-			$d->{ $mode . $type }->{'d'} = undef;
-			$d->{ $mode . $type }->{'t'} = undef;
-			$d->{ $mode . $type }->{'i'} = undef;
-
-		# parse the alarm_add skip
-		# alarm_add NOT SUPPORTED on this version of POE, skipping alarm_adds/alarm_clears tests!
-		} elsif ( $l =~ /^alarm_add\s+NOT\s+SUPPORTED\s+on/ ) {
-			# nullify the data struct for that
-			foreach my $type ( qw( alarm_adds alarm_clears ) ) {
-				$d->{ $type }->{'d'} = undef;
-				$d->{ $type }->{'t'} = undef;
-				$d->{ $type }->{'i'} = undef;
-			}
 
 		# parse any STDERR output
 		# !STDERR: unable to foo
@@ -244,6 +210,32 @@ sub analyze : State {
 		}
 	} else {
 		print "[ANALYZER] Unable to open $yaml_file for writing -> " . $! . "\n";
+	}
+
+	# now that we've dumped the stuff, we can do some sanity checks
+
+	# the POE we "think" we loaded should match reality!
+	if ( exists $test->{'poe'}->{'v_real'} ) {	# if this exists, then we successfully loaded POE
+		if ( $test->{'poe'}->{'v'} ne $test->{'poe'}->{'v_real'} ) {
+			print "\n[ANALYZER] The subprocess loaded a different version of POE than we thought -> $yaml_file\n";
+		}
+
+		# The loop we loaded should match what we wanted!
+		if ( exists $test->{'poe'}->{'modules'} ) {
+			if ( ! exists $test->{'poe'}->{'modules'}->{ $test->{'poe'}->{'loop'} } ) {
+				print "\n[ANALYZER] The subprocess loaded a different Loop than we thought -> $yaml_file\n";
+			}
+		}
+	}
+
+	# the perl binary should be the same!
+	if ( exists $test->{'perl'} ) {		# if this exists, we successfully fired up the app ( no compile error )
+		if ( $test->{'perl'}->{'binary'} ne $^X ) {
+			print "\n[ANALYZER] The subprocess booted up on a different perl binary -> $yaml_file\n";
+		}
+		if ( $test->{'perl'}->{'v'} ne sprintf( "%vd", $^V ) ) {
+			print "\n[ANALYZER] The subprocess booted up on a different perl version -> $yaml_file\n";
+		}
 	}
 
 	# all done!

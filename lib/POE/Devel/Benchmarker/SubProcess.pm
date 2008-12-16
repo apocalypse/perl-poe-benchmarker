@@ -6,10 +6,7 @@ use strict; use warnings;
 use vars qw( $VERSION );
 $VERSION = '0.05';
 
-# Import Time::HiRes's time()
-use Time::HiRes qw( time );
-
-# FIXME UGLY HACK here
+# set our compile-time stuff
 BEGIN {
 	# should we enable assertions?
 	if ( defined $ARGV[1] and $ARGV[1] ) {
@@ -26,6 +23,9 @@ BEGIN {
 		## use critic
 	}
 }
+
+# Import Time::HiRes's time()
+use Time::HiRes qw( time );
 
 # load POE
 use POE;
@@ -391,7 +391,8 @@ sub poe_manyalarms {
 		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $alarm_add_limit, 'alarm_clears', $elapsed, $alarm_add_limit/$elapsed );
 		print "alarm_clears times: @start_times @end_times\n";
 	} else {
-		print "alarm_add NOT SUPPORTED on this version of POE, skipping alarm_adds/alarm_clears tests!\n";
+		print "SKIPPING br0ken alarm_adds because alarm_add() NOT SUPPORTED on this version of POE\n";
+		print "SKIPPING br0ken alarm_clears because alarm_add() NOT SUPPORTED on this version of POE\n";
 	}
 
 	$_[KERNEL]->yield( 'sessions' );
@@ -435,7 +436,8 @@ sub poe_sessions_end {
 sub poe_stdin_read {
 	# stupid, but we have to skip those tests
 	if ( $eventloop eq 'Tk' or $eventloop eq 'Prima' ) {
-		print "SKIPPING STDIN tests on broken loop: $eventloop\n";
+		print "SKIPPING br0ken select_read_STDIN because eventloop doesn't work: $eventloop\n";
+		print "SKIPPING br0ken select_write_STDIN because eventloop doesn't work: $eventloop\n";
 		$_[KERNEL]->yield( 'myfh_read' );
 		return;
 	}
@@ -449,7 +451,7 @@ sub poe_stdin_read {
 		}
 	};
 	if ( $@ ) {
-		print "filehandle select_read on STDIN FAILED: $@\n";
+		print "SKIPPING br0ken select_read_STDIN because FAILED: $@\n";
 	} else {
 		my $elapsed = time() - $start;
 		my @end_times = times();
@@ -473,7 +475,7 @@ sub poe_stdin_write {
 		}
 	};
 	if ( $@ ) {
-		print "filehandle select_write on STDIN FAILED: $@\n";
+		print "SKIPPING br0ken select_write_STDIN because FAILED: $@\n";
 	} else {
 		my $elapsed = time() - $start;
 		my @end_times = times();
@@ -490,7 +492,8 @@ sub poe_stdin_write {
 sub poe_myfh_read {
 	# stupid, but we have to skip those tests
 	if ( $eventloop eq 'Event_Lib' or $eventloop eq 'Tk' or $eventloop eq 'Prima' ) {
-		print "SKIPPING MYFH tests on broken loop: $eventloop\n";
+		print "SKIPPING br0ken select_read_MYFH because eventloop doesn't work: $eventloop\n";
+		print "SKIPPING br0ken select_write_MYFH because eventloop doesn't work: $eventloop\n";
 		$_[KERNEL]->yield( 'calls' );
 		return;
 	}
@@ -507,7 +510,7 @@ sub poe_myfh_read {
 		unlink( 'poebench' ) or die $!;
 	};
 	if ( $@ ) {
-		print "filehandle select_read on MYFH FAILED: $@\n";
+		print "SKIPPING br0ken select_read_MYFH because FAILED: $@\n";
 	} else {
 		my $elapsed = time() - $start;
 		my @end_times = times();
@@ -534,7 +537,7 @@ sub poe_myfh_write {
 		unlink( 'poebench' ) or die $!;
 	};
 	if ( $@ ) {
-		print "filehandle select_write on MYFH FAILED: $@\n";
+		print "SKIPPING br0ken select_write_MYFH because FAILED: $@\n";
 	} else {
 		my $elapsed = time() - $start;
 		my @end_times = times();
@@ -649,8 +652,8 @@ sub poe_server_sf_connect {
 # handles SocketFactory errors
 sub poe_server_sf_failure {
 	# ARGH, we couldnt create listening socket
-	print "SKIPPING socket_connect tests because we were unable to setup listening socket\n";
-	print "SKIPPING socket_stream tests because we were unable to setup listening socket\n";
+	print "SKIPPING br0ken socket_connects because we were unable to setup listening socket\n";
+	print "SKIPPING br0ken socket_stream because we were unable to setup listening socket\n";
 
 	$_[KERNEL]->yield( 'socketfactory_cleanup' );
 
@@ -702,8 +705,8 @@ sub poe_socketfactory_connects {
 	} else {
 		my $elapsed = time() - $_[HEAP]->{start};
 		my @end_times = times();
-		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $sf_connects, 'socket_connect', $elapsed, $sf_connects/$elapsed );
-		print "socket_connect times: " . join( " ", @{ $_[HEAP]->{starttimes} } ) . " @end_times\n";
+		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $sf_connects, 'socket_connects', $elapsed, $sf_connects/$elapsed );
+		print "socket_connects times: " . join( " ", @{ $_[HEAP]->{starttimes} } ) . " @end_times\n";
 
 		$_[KERNEL]->yield( 'socketfactory_stream' );
 	}
@@ -767,17 +770,14 @@ sub poe_client_sf_connect {
 
 # handles SocketFactory errors
 sub poe_client_sf_failure {
-my ($operation, $errnum, $errstr, $wheel_id) = @_[ARG0..ARG3];
-warn "Wheel $wheel_id generated $operation error $errnum: $errstr\n";
-
 	# ARGH, we couldnt create connecting socket
 	if ( $_[HEAP]->{'SF_mode'} eq 'CONNECTS' ) {
-		print "SKIPPING socket_connects tests because we were unable to setup connecting socket\n";
+		print "SKIPPING br0ken socket_connects because we were unable to setup connecting socket\n";
 
 		# go to stream test
 		$_[KERNEL]->yield( 'socketfactory_stream' );
 	} elsif ( $_[HEAP]->{'SF_mode'} eq 'STREAM' ) {
-		print "SKIPPING socket_stream tests because we were unable to setup connecting socket\n";
+		print "SKIPPING br0ken socket_stream because we were unable to setup connecting socket\n";
 
 		$_[KERNEL]->yield( 'socketfactory_cleanup' );
 	}
@@ -851,7 +851,7 @@ sub dump_pidinfo {
 
 # print the local Perl info
 sub dump_perlinfo {
-	print "Running under perl binary: " . $^X . "\n";
+	print "Running under perl binary: '" . $^X . "' v" . sprintf( "%vd", $^V ) . "\n";
 
 	require Config;
 	my $config = Config::myconfig();

@@ -123,7 +123,6 @@ sub init_options {
 	}
 
 	# some sanity tests
-	# FIXME find a way to set the results directory via attribute
 	if ( ! -d 'results' ) {
 		die "The 'results' directory is not found in the working directory!";
 	}
