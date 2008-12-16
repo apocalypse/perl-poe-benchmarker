@@ -137,13 +137,17 @@ sub analyze : State {
 				# ignore the rest of the fluff
 			}
 
+		# ignore any Devel::Hide stuff
+		# $l eq '!STDERR: Devel::Hide hides POE/XS/Queue/Array.pm'
+		} elsif ( $l =~ /^\!STDERR:\s+Devel\:\:Hide\s+hides/ ) {
+			# ignore them
+
 		# data that we can safely throw away
 		} elsif ( 	$l eq 'Using NO Assertions!' or
 				$l eq 'Using FULL Assertions!' or
 				$l eq 'Using the LITE tests' or
 				$l eq 'Using the HEAVY tests' or
 				$l eq 'DISABLING POE::XS::Queue::Array' or
-				$l eq '!STDERR: Devel::Hide hides POE/XS/Queue/Array.pm' or
 				$l eq 'LETTING POE find POE::XS::Queue::Array' or
 				$l eq 'UNABLE TO GET /proc/self/status' or
 				$l eq 'UNABLE TO GET /proc/cpuinfo' or
@@ -223,7 +227,12 @@ sub analyze : State {
 		# The loop we loaded should match what we wanted!
 		if ( exists $test->{'poe'}->{'modules'} ) {
 			if ( ! exists $test->{'poe'}->{'modules'}->{ $test->{'poe'}->{'loop'} } ) {
-				print "\n[ANALYZER] The subprocess loaded a different Loop than we thought -> $yaml_file\n";
+				# gaah special-case for IO_Poll
+				if ( $test->{'poe'}->{'loop'} eq 'POE::Loop::IO_Poll' and exists $test->{'poe'}->{'modules'}->{'POE::Loop::Poll'} ) {
+					# ah, ignore this
+				} else {
+					print "\n[ANALYZER] The subprocess loaded a different Loop than we thought -> $yaml_file\n";
+				}
 			}
 		}
 	}

@@ -16,10 +16,26 @@ BEGIN {
 		## use critic
 	}
 
+	# Compile a list of modules to hide
+	my $hide = '';
+	if ( defined $ARGV[0] ) {
+		if ( $ARGV[0] ne 'XSPoll' ) {
+			$hide .= ' POE/XS/Loop/Poll.pm';
+		}
+		if ( $ARGV[0] ne 'XSEPoll' ) {
+			$hide .= ' POE/XS/Loop/EPoll.pm';
+		}
+	}
+
 	# should we "hide" XS::Queue::Array?
 	if ( defined $ARGV[3] and $ARGV[3] ) {
+		$hide .= ' POE/XS/Queue/Array.pm';
+	}
+
+	# actually hide the modules!
+	{
 		## no critic
-		eval "use Devel::Hide qw( POE/XS/Queue/Array.pm )";
+		eval "use Devel::Hide qw( $hide )";
 		## use critic
 	}
 }

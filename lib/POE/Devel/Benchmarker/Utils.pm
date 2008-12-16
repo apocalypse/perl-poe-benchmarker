@@ -87,6 +87,12 @@ sub loop2realversion {
 		return;
 	} elsif ( $eventloop eq 'Select' ) {
 		return 'BUILTIN';
+
+	# FIXME figure the XS stuff out!
+#	} elsif ( $eventloop eq 'XSPoll' ) {
+#		return $POE::XS::Loop::Poll::VERSION;
+#	} elsif ( $eventloop eq 'XSEpoll' ) {
+#		return $POE::XS::Loop::EPoll::VERSION;
 	} else {
 		die "Unknown event loop!";
 	}
@@ -130,6 +136,7 @@ sub beautify_times {
 sub knownloops {
 	# FIXME we remove Wx because I suck.
 	# FIXME I have no idea how to load/unload Kqueue...
+	# FIXME figure out the XS stuff! XSPoll XSEPoll
 	return [ qw( Event_Lib EV Glib Prima Gtk Tk Select IO_Poll ) ];
 }
 

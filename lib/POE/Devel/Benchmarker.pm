@@ -228,8 +228,8 @@ sub _start : State {
 	$_[KERNEL]->sig( 'INT', 'handle_kill' );
 	$_[KERNEL]->sig( 'TERM', 'handle_kill' );
 
-	# okay, go through all the dists in version order
-	@versions = sort { $a <=> $b } @versions;
+	# okay, go through all the dists in version order ( from newest to oldest )
+	@versions = sort { $b <=> $a } @versions;
 
 	# Store the versions in our heap
 	$_[HEAP]->{'VERSIONS'} = \@versions;
