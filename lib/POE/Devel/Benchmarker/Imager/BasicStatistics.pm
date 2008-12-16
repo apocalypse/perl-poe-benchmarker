@@ -32,6 +32,62 @@ sub imager {
 	# generate the single loop performance
 	$self->generate_loopperf;
 
+	# generate the loop assert/xsqueue ( 4 lines ) per metric
+	$self->generate_loopoptions;
+
+	return;
+}
+
+# charts a single loop's progress over POE versions
+sub generate_loopoptions {
+	my $self = shift;
+
+	if ( ! $self->{'imager'}->quiet ) {
+		print "[BasicStatistics] Generating the Loop-Options graphs...\n";
+	}
+
+	# go through all the loops we want
+	foreach my $loop ( keys %{ $self->{'imager'}->poe_loops } ) {
+		foreach my $metric ( qw( alarms dispatches posts single_posts startups select_read_MYFH select_write_MYFH select_read_STDIN select_write_STDIN ) ) {
+			my %data;
+
+			# organize data by POE version
+			foreach my $poe ( @{ $self->{'imager'}->poe_versions_sorted } ) {
+				# go through the combo of assert/xsqueue
+				foreach my $assert ( qw( assert noassert ) ) {
+					if ( ! exists $self->{'imager'}->data->{ $assert } ) {
+						next;
+					}
+					foreach my $xsqueue ( qw( xsqueue noxsqueue ) ) {
+						if ( ! exists $self->{'imager'}->data->{ $assert }->{ $xsqueue } ) {
+							next;
+						}
+
+						if ( exists $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
+							and defined $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
+							) {
+							push( @{ $data{ $assert . '_' . $xsqueue } }, $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'} );
+						} else {
+							push( @{ $data{ $assert . '_' . $xsqueue } }, 0 );
+						}
+					}
+				}
+			}
+
+			# transform %data into something GD likes
+			my @data_for_gd;
+			foreach my $m ( sort keys %data ) {
+				push( @data_for_gd, $data{ $m } );
+			}
+
+			# send it to GD!
+			$self->make_gdgraph(	'Options_' . $loop . '_' . $metric,
+						[ sort keys %data ],
+						\@data_for_gd,
+			);
+		}
+	}
+
 	return;
 }
 
@@ -39,35 +95,51 @@ sub imager {
 sub generate_loopperf {
 	my $self = shift;
 
+	if ( ! $self->{'imager'}->quiet ) {
+		print "[BasicStatistics] Generating the Loop-Performance graphs...\n";
+	}
+
 	# go through all the loops we want
 	foreach my $loop ( keys %{ $self->{'imager'}->poe_loops } ) {
-		my %data;
-
-		# organize data by POE version
-		foreach my $poe ( @{ $self->{'imager'}->poe_versions_sorted } ) {
-			foreach my $metric ( qw( alarms dispatches posts single_posts startups select_read_MYFH select_write_MYFH select_read_STDIN select_write_STDIN ) ) {
-				if ( exists $self->{'imager'}->data->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
-					and defined $self->{'imager'}->data->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
-					) {
-					push( @{ $data{ $metric } }, $self->{'imager'}->data->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'} );
-				} else {
-					push( @{ $data{ $metric } }, 0 );
+		# go through the combo of assert/xsqueue
+		foreach my $assert ( qw( assert noassert ) ) {
+			if ( ! exists $self->{'imager'}->data->{ $assert } ) {
+				next;
+			}
+			foreach my $xsqueue ( qw( xsqueue noxsqueue ) ) {
+				if ( ! exists $self->{'imager'}->data->{ $assert }->{ $xsqueue } ) {
+					next;
 				}
+				my %data;
+
+				# organize data by POE version
+				foreach my $poe ( @{ $self->{'imager'}->poe_versions_sorted } ) {
+					foreach my $metric ( qw( alarms dispatches posts single_posts startups select_read_MYFH select_write_MYFH select_read_STDIN select_write_STDIN ) ) {
+						if ( exists $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
+							and defined $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
+							) {
+							push( @{ $data{ $metric } }, $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'} );
+						} else {
+							push( @{ $data{ $metric } }, 0 );
+						}
+					}
+				}
+
+				# transform %data into something GD likes
+				my @data_for_gd;
+				foreach my $m ( sort keys %data ) {
+					push( @data_for_gd, $data{ $m } );
+				}
+
+				# send it to GD!
+				$self->make_gdgraph(	'Bench_' . $loop,
+							[ sort keys %data ],
+							\@data_for_gd,
+							$assert,
+							$xsqueue,
+				);
 			}
 		}
-
-		# transform %data into something GD likes
-		my @data_for_gd;
-		foreach my $metric ( sort keys %data ) {
-			push( @data_for_gd, $data{ $metric } );
-		}
-
-		# send it to GD!
-		$self->make_gdgraph(	"Bench_$loop",
-					[ sort keys %data ],
-					'iterations/sec',
-					\@data_for_gd,
-		);
 	}
 
 	return;
@@ -77,35 +149,45 @@ sub generate_loopperf {
 sub generate_loopwars {
 	my $self = shift;
 
+	if ( ! $self->{'imager'}->quiet ) {
+		print "[BasicStatistics] Generating the LoopWars graphs...\n";
+	}
+
 	# go through all the metrics we want
 	foreach my $metric ( qw( alarms dispatches posts single_posts startups select_read_MYFH select_write_MYFH select_read_STDIN select_write_STDIN ) ) {
-		my %data;
+		# go through the combo of assert/xsqueue
+		foreach my $assert ( qw( assert noassert ) ) {
+			foreach my $xsqueue ( qw( xsqueue noxsqueue ) ) {
+				my %data;
 
-		# organize data by POE version
-		foreach my $poe ( @{ $self->{'imager'}->poe_versions_sorted } ) {
-			foreach my $loop ( keys %{ $self->{'imager'}->poe_loops } ) {
-				if ( exists $self->{'imager'}->data->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
-					and defined $self->{'imager'}->data->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
-					) {
-					push( @{ $data{ $loop } }, $self->{'imager'}->data->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'} );
-				} else {
-					push( @{ $data{ $loop } }, 0 );
+				# organize data by POE version
+				foreach my $poe ( @{ $self->{'imager'}->poe_versions_sorted } ) {
+					foreach my $loop ( keys %{ $self->{'imager'}->poe_loops } ) {
+						if ( exists $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
+							and defined $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
+							) {
+							push( @{ $data{ $loop } }, $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'} );
+						} else {
+							push( @{ $data{ $loop } }, 0 );
+						}
+					}
 				}
+
+				# transform %data into something GD likes
+				my @data_for_gd;
+				foreach my $m ( sort keys %data ) {
+					push( @data_for_gd, $data{ $m } );
+				}
+
+				# send it to GD!
+				$self->make_gdgraph(	"LoopWar_$metric",
+							[ sort keys %{ $self->{'imager'}->poe_loops } ],
+							\@data_for_gd,
+							$assert,
+							$xsqueue,
+				);
 			}
 		}
-
-		# transform %data into something GD likes
-		my @data_for_gd;
-		foreach my $loop ( sort keys %data ) {
-			push( @data_for_gd, $data{ $loop } );
-		}
-
-		# send it to GD!
-		$self->make_gdgraph(	"LoopWar_$metric",
-					[ sort keys %{ $self->{'imager'}->poe_loops } ],
-					'iterations/sec',
-					\@data_for_gd,
-		);
 	}
 
 	return;
@@ -115,8 +197,9 @@ sub make_gdgraph {
 	my $self = shift;
 	my $metric = shift;
 	my $legend = shift;
-	my $ylabel = shift;
 	my $data = shift;
+	my $assert = shift;
+	my $xsqueue = shift;
 
 	# Get the graph object
 	my $graph = new GD::Graph::lines( 800, 600 );
@@ -124,14 +207,14 @@ sub make_gdgraph {
 	# Set some stuff
 	$graph->set(
 #		'x_label'		=>	'POE Versions',
-		'title'			=>	$metric,
+		'title'			=>	$metric . ( defined $xsqueue ? " ($assert - $xsqueue)" : '' ),
 		'line_width'		=>	1,
 		'boxclr'		=>	'black',
 		'overwrite'		=>	0,
 		'x_labels_vertical'	=>	1,
 		'x_all_ticks'		=>	1,
 		'legend_placement'	=>	'BL',
-		'y_label'		=>	$ylabel,
+		'y_label'		=>	'iterations/sec',
 
 		# 3d options only
 		#'line_depth'		=>	2.5,
@@ -158,9 +241,8 @@ sub make_gdgraph {
 
 	# Print it!
 	my $filename = $self->{'opts'}->{'dir'} . $metric . '_' .
-		( $self->{'imager'}->litetests ? 'lite' : 'heavy' ) . '_' .
-		( $self->{'imager'}->noasserts ? 'noasserts' : 'asserts' ) . '_' .
-		( $self->{'imager'}->noxsqueue ? 'noxsqueue' : 'xsqueue' ) .
+		( $self->{'imager'}->litetests ? 'lite' : 'heavy' ) .
+		( defined $xsqueue ? '_' . $assert . '_' . $xsqueue : '' ) .
 		'.png';
 	open( my $fh, '>', $filename ) or die 'Cannot open graph file!';
 	binmode( $fh );
@@ -191,7 +273,7 @@ This package generates some basic graphs from the statistics output. Since the P
 for the backend logic of POE, it makes sense to graph all related metrics of a single loop across POE versions to see if
 it performs differently. The related benchmark metrics are: events, alarms, filehandles, and startup.
 
-This will generate 2 types of graphs:
+This will generate some types of graphs:
 
 =over 4
 
@@ -199,13 +281,19 @@ This will generate 2 types of graphs:
 
 Each metric will have a picture for itself, showing how each loop compare against each other with the POE versions.
 
-file: BasicStatistics/$metric.png
+file: BasicStatistics/LoopWar_$metric_$lite_$assert_$xsqueue.png
 
 =item Single Loop over POE versions
 
 Each Loop will have a picture for itself, showing how each metric performs over POE versions.
 
-file: BasicStatistics/$loop.png
+file: BasicStatistics/Bench_$loop_$lite_$assert_$xsqueue.png
+
+=item Single Loop over POE versions with assert/xsqueue
+
+Each Loop will have a picture for itself, showing how each metric is affected by the assert/xsqueue options.
+
+file: BasicStatistics/Options_$loop_$metric_$lite.png
 
 =back
 

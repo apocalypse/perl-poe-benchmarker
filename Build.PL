@@ -58,9 +58,9 @@ my $build = Module::Build->new(
 		'POE::Loop::Kqueue'		=> 0,
 
 		# included in POE ( listed here for completeness )
-		#'POE::Loop::Tk'			=> 0,
-		#'POE::Loop::Select'			=> 0,
-		#'POE::Loop::IO_Poll'			=> 0,
+		#'POE::Loop::Tk'		=> 0,
+		#'POE::Loop::Select'		=> 0,
+		#'POE::Loop::IO_Poll'		=> 0,
 
 		# the loops' dependencies
 		'Event'				=> 0,

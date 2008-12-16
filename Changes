@@ -1,6 +1,6 @@
 Revision history for Perl extension POE::Devel::Benchmarker
 
-* 0.04 Mon Dec 15 15:12:42 2008
+* 0.04
 
 	Started work on the image generator ( Imager ) and added the BasicStatistics plugin, yay!
 	Added automatic "pick up where we left off" to the benchmarker

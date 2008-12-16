@@ -22,7 +22,7 @@ use version;
 # generate some accessors
 use base qw( Class::Accessor::Fast );
 __PACKAGE__->mk_ro_accessors( qw( poe_versions poe_versions_sorted poe_loops data
-	noxsqueue noasserts litetests
+	noxsqueue noasserts litetests quiet
 ) );
 
 # autoflush, please!
@@ -74,8 +74,8 @@ sub init_options {
 	# set defaults
 	$self->{'quiet'} = 0;
 	$self->{'litetests'} = 1;
-	$self->{'noasserts'} = 0;
-	$self->{'noxsqueue'} = 0;
+	$self->{'noasserts'} = undef;
+	$self->{'noxsqueue'} = undef;
 
 	# process our options
 	if ( defined $options and ref $options and ref( $options ) eq 'HASH' ) {
@@ -150,12 +150,16 @@ sub loadtests {
 				if ( $self->noxsqueue ) {
 					if ( $xsqueue eq 'xsqueue' ) { next }
 				} else {
-					if ( $xsqueue eq 'noxsqueue' ) { next }
+					if ( defined $self->noxsqueue ) {
+						if ( $xsqueue eq 'noxsqueue' ) { next }
+					}
 				}
 				if ( $self->noasserts ) {
 					if ( $assert eq 'assert' ) { next }
 				} else {
-					if ( $assert eq 'noassert' ) { next }
+					if ( defined $self->noasserts ) {
+						if ( $assert eq 'noassert' ) { next }
+					}
 				}
 				if ( $self->litetests ) {
 					if ( $lite eq 'HEAVY' ) { next }
@@ -229,14 +233,14 @@ sub load_yaml {
 	}
 
 	# get the info we're interested in
-	$self->{'data'}->{ $ver }->{ $loop }->{'metrics'} = $yaml->{'metrics'};
-	$self->{'data'}->{ $ver }->{ $loop }->{'time'} = $yaml->{'t'};
+	$self->{'data'}->{ $assert }->{ $xsqueue }->{ $ver }->{ $loop }->{'metrics'} = $yaml->{'metrics'};
+	$self->{'data'}->{ $assert }->{ $xsqueue }->{ $ver }->{ $loop }->{'time'} = $yaml->{'t'};
 
 	if ( exists $yaml->{'pid'} ) {
-		$self->{'data'}->{ $ver }->{ $loop }->{'pid'} = $yaml->{'pid'};
+		$self->{'data'}->{ $assert }->{ $xsqueue }->{ $ver }->{ $loop }->{'pid'} = $yaml->{'pid'};
 	}
 	if ( exists $yaml->{'poe'}->{'modules'} ) {
-		$self->{'data'}->{ $ver }->{ $loop }->{'poe_modules'} = $yaml->{'poe'}->{'modules'};
+		$self->{'data'}->{ $assert }->{ $xsqueue }->{ $ver }->{ $loop }->{'poe_modules'} = $yaml->{'poe'}->{'modules'};
 	}
 
 	# sanity check the perl stuff
@@ -365,8 +369,9 @@ This package automatically parses the benchmark data and generates pretty charts
 
 =head1 DESCRIPTION
 
-This package uses the excellent L<Chart::Clicker> module to generate the images. It will parse the YAML output from
-the benchmark data and calls it's plugins to generate any charts necessary and place them in the 'images' directory.
+It will parse the YAML output from the benchmark data and calls it's plugins to generate any charts necessary
+and place them in the 'images' directory under the plugin's name. This module only does the high-level stuff, and leaves
+the actual chart generation to the plugins.
 
 Furthermore, we use Module::Pluggable to search all modules in the POE::Devel::Benchmarker::Imager::* namespace and
 let them handle the generation of images. That way virtually unlimited combinations of images can be generated on the fly
@@ -385,21 +390,21 @@ This enables quiet mode which will not print anything to the console except for 
 
 default: false
 
-=item noxsqueue => boolean
+=item noxsqueue => boolean / undef
 
-This will tell the Imager to not consider those tests for the output
+This will tell the Imager to not consider those tests for the output.
 
 	benchmark( { noxsqueue => 1 } );
 
-default: false
+default: undef ( load both xsqueue and noxsqueue tests )
 
-=item noasserts => boolean
+=item noasserts => boolean / undef
 
 This will tell the Imager to not consider those tests for the output
 
 	benchmark( { noasserts => 1 } );
 
-default: false
+default: undef ( load both assert and noassert tests )
 
 =item litetests => boolean
 
@@ -413,8 +418,7 @@ default: true
 
 =head1 PLUGIN INTERFACE
 
-For now, this is undocumented. Please look at BasicStatistics for the general concept on how it interacts with this module
-and as always, feel free to look at the source :)
+For now, this is undocumented. Please look at BasicStatistics for the general concept on how it interacts with this module.
 
 =head1 EXPORT
 
