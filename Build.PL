@@ -23,6 +23,9 @@ my $build = Module::Build->new(
 		'POE'				=> 0,
 		'POE::Session::AttributeBased'	=> 0,
 
+		# FIXME POE stuff that Test::Dependencies needs to see
+		'POE::Session'			=> 0,
+
 		# misc perl stuff
 		'Time::HiRes'			=> 0,
 		'version'			=> 0,
@@ -41,12 +44,12 @@ my $build = Module::Build->new(
 		'GD::Graph::lines'		=> 0,
 		'Class::Accessor::Fast'		=> 0,
 		'Module::Pluggable'		=> 0,
+
+		# Test stuff
+		'Test::More'			=> '0.86',	# require latest for note() support in t/a_is_prereq_outdated.t
 	},
 
 	'recommends'		=> {
-		# Test stuff
-		'Test::More'			=> '0.86',	# require latest for note() support in t/a_is_prereq_outdated.t
-
 		# our POE loops!
 		'POE::Loop::Event'		=> 0,
 		'POE::Loop::Event_Lib'		=> 0,
