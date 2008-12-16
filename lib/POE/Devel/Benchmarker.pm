@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.04';
+$VERSION = '0.05';
 
 # auto-export the only sub we have
 use base qw( Exporter );
@@ -439,7 +439,6 @@ sub create_subprocess : State {
 						'-MPOE::Devel::Benchmarker::SubProcess',
 						'-e',
 						'POE::Devel::Benchmarker::SubProcess::benchmark',
-						$_[HEAP]->{'current_version'},
 						$_[HEAP]->{'current_loop'},
 						$_[HEAP]->{'current_assertions'},
 						$_[HEAP]->{'lite_tests'},
