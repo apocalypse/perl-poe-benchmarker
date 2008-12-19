@@ -21,12 +21,11 @@ use base 'POE::Session::AttributeBased';
 use version;
 
 # use the power of YAML
-use YAML::Tiny;
+use YAML::Tiny qw( Dump );
 
 # Load our stuff
 use POE::Devel::Benchmarker::GetInstalledLoops;
-use POE::Devel::Benchmarker::Utils qw( poeloop2load knownloops generateTestfile );
-use POE::Devel::Benchmarker::Analyzer;
+use POE::Devel::Benchmarker::Utils qw( poeloop2load knownloops generateTestfile beautify_times currentTestVersion );
 
 # Actually run the tests!
 sub benchmark {
@@ -287,9 +286,6 @@ sub found_loops : State {
 			$_[HEAP]->{'forcenoxsqueue'} = 1;
 		}
 	}
-
-	# Fire up the analyzer
-	initAnalyzer( $_[HEAP]->{'quiet_mode'} );
 
 	if ( ! $_[HEAP]->{'quiet_mode'} ) {
 		print "[BENCHMARKER] Starting the benchmarks!" .
@@ -594,7 +590,7 @@ sub wrapup_test : State {
 	}
 
 	# Send the data to the Analyzer to process
-	$_[KERNEL]->post( 'Benchmarker::Analyzer', 'analyze', {
+	$_[KERNEL]->yield( 'analyze_output', {
 		'poe'		=> {
 			'v'	=> $_[HEAP]->{'current_version'}->stringify,	# YAML::Tiny doesn't like version objects :(
 			'loop'	=> 'POE::Loop::' . $_[HEAP]->{'current_loop'},
@@ -608,7 +604,7 @@ sub wrapup_test : State {
 		},
 		'raw'		=> $_[HEAP]->{'current_data'},
 		'test'		=> $file,
-		'x_bench'	=> $POE::Devel::Benchmarker::VERSION,
+		'x_bench'	=> currentTestVersion(),
 		( $_[HEAP]->{'test_timedout'} ? ( 'timedout' => 1 ) : () ),
 		( $_[HEAP]->{'lite_tests'} ? ( 'litetests' => 1 ) : () ),
 		( $_[HEAP]->{'current_assertions'} ? ( 'asserts' => 1 ) : () ),
@@ -618,6 +614,206 @@ sub wrapup_test : State {
 	# process the next test
 	$_[KERNEL]->yield( 'bench_xsqueue' );
 
+	return;
+}
+
+sub analyze_output : State {
+	# get the data
+	my $test = $_[ARG0];
+
+	# clean up the times() stuff
+	$test->{'t'}->{'t'} = beautify_times(
+		join( " ", @{ delete $test->{'t'}->{'s_t'} } ) .
+		" " .
+		join( " ", @{ delete $test->{'t'}->{'e_t'} } )
+	);
+
+	# Okay, break it down into our data struct
+	$test->{'metrics'} = {};
+	my $d = $test->{'metrics'};
+	my @unknown;
+	foreach my $l ( split( /(?:\n|\r)/, $test->{'raw'} ) ) {
+		# skip empty lines
+		if ( $l eq '' ) { next }
+
+		# usual test benchmark output
+		#        10 startups             in     0.885 seconds (     11.302 per second)
+		#     10000 posts                in     0.497 seconds (  20101.112 per second)
+		if ( $l =~ /^\s+\d+\s+(\w+)\s+in\s+([\d\.]+)\s+seconds\s+\(\s+([\d\.]+)\s+per\s+second\)$/ ) {
+			$d->{ $1 }->{'d'} = $2;		# duration in seconds
+			$d->{ $1 }->{'i'} = $3;		# iterations per second
+
+		# usual test benchmark times output
+		# startup times: 0.1 0 0 0 0.1 0 0.76 0.09
+		} elsif ( $l =~ /^(\w+)\s+times:\s+(.+)$/ ) {
+			$d->{ $1 }->{'t'} = beautify_times( $2 );	# the times hash
+
+		# usual test SKIP output
+		# SKIPPING br0ken $metric because ...
+		} elsif ( $l =~ /^SKIPPING\s+br0ken\s+(\w+)\s+because/ ) {
+			# don't build their data struct
+
+		# parse the memory footprint stuff
+		} elsif ( $l =~ /^pidinfo:\s+(.+)$/ ) {
+			# what should we analyze?
+			my $pidinfo = $1;
+
+			# VmPeak:	   16172 kB
+			if ( $pidinfo =~ /^VmPeak:\s+(.+)$/ ) {
+				$test->{'pid'}->{'vmpeak'} = $1;
+
+			# voluntary_ctxt_switches:	10
+			} elsif ( $pidinfo =~ /^voluntary_ctxt_switches:\s+(.+)$/ ) {
+				$test->{'pid'}->{'vol_ctxt'} = $1;
+
+			# nonvoluntary_ctxt_switches:	1221
+			} elsif ( $pidinfo =~ /^nonvoluntary_ctxt_switches:\s+(.+)$/ ) {
+				$test->{'pid'}->{'nonvol_ctxt'} = $1;
+
+			} else {
+				# ignore the rest of the fluff
+			}
+		# parse the perl binary stuff
+		} elsif ( $l =~ /^perlconfig:\s+(.+)$/ ) {
+			# what should we analyze?
+			my $perlconfig = $1;
+
+			# ignore the fluff ( not needed now... )
+
+		# parse the CPU info
+		} elsif ( $l =~ /^cpuinfo:\s+(.+)$/ ) {
+			# what should we analyze?
+			my $cpuinfo = $1;
+
+			# FIXME if this is on a multiproc system, we will overwrite the data per processor ( harmless? )
+
+			# cpu MHz		: 1201.000
+			if ( $cpuinfo =~ /^cpu\s+MHz\s+:\s+(.+)$/ ) {
+				$test->{'cpu'}->{'mhz'} = $1;
+
+			# model name	: Intel(R) Core(TM)2 Duo CPU     L7100  @ 1.20GHz
+			} elsif ( $cpuinfo =~ /^model\s+name\s+:\s+(.+)$/ ) {
+				$test->{'cpu'}->{'name'} = $1;
+
+			# bogomips	: 2397.58
+			} elsif ( $cpuinfo =~ /^bogomips\s+:\s+(.+)$/ ) {
+				$test->{'cpu'}->{'bogo'} = $1;
+
+			} else {
+				# ignore the rest of the fluff
+			}
+
+		# ignore any Devel::Hide stuff
+		# $l eq '!STDERR: Devel::Hide hides POE/XS/Queue/Array.pm'
+		} elsif ( $l =~ /^\!STDERR:\s+Devel\:\:Hide\s+hides/ ) {
+			# ignore them
+
+		# data that we can safely throw away
+		} elsif ( 	$l eq 'Using NO Assertions!' or
+				$l eq 'Using FULL Assertions!' or
+				$l eq 'Using the LITE tests' or
+				$l eq 'Using the HEAVY tests' or
+				$l eq 'DISABLING POE::XS::Queue::Array' or
+				$l eq 'LETTING POE find POE::XS::Queue::Array' or
+				$l eq 'UNABLE TO GET /proc/self/status' or
+				$l eq 'UNABLE TO GET /proc/cpuinfo' or
+				$l eq '!STDERR: POE::Kernel\'s run() method was never called.' or	# to ignore old POEs that threw this warning
+				$l eq 'TEST TERMINATED DUE TO TIMEOUT' ) {
+			# ignore them
+
+		# parse the perl binary stuff
+		} elsif ( $l =~ /^Running\s+under\s+perl\s+binary:\s+\'([^\']+)\'\s+v([\d\.]+)$/ ) {
+			$test->{'perl'}->{'binary'} = $1;
+
+			# setup the perl version
+			$test->{'perl'}->{'v'} = $2;
+
+		# the master loop version ( what the POE::Loop::XYZ actually uses )
+		# Using loop: EV-3.49
+		} elsif ( $l =~ /^Using\s+master\s+loop:\s+(.+)$/ ) {
+			$test->{'poe'}->{'loop_m'} = $1;
+
+		# the real POE version that was loaded
+		# Using POE-1.001
+		} elsif ( $l =~ /^Using\s+POE-(.+)$/ ) {
+			$test->{'poe'}->{'v_real'} = $1;
+
+		# the various queue/loop modules we loaded
+		# POE is using: POE::XS::Queue::Array v0.005
+		# POE is using: POE::Queue v1.2328
+		# POE is using: POE::Loop::EV v0.06
+		} elsif ( $l =~ /^POE\s+is\s+using:\s+([^\s]+)\s+v(.+)$/ ) {
+			$test->{'poe'}->{'modules'}->{ $1 } = $2;
+
+		# get the uname info
+		# Running under machine: Linux apoc-x300 2.6.24-21-generic #1 SMP Tue Oct 21 23:43:45 UTC 2008 i686 GNU/Linux
+		} elsif ( $l =~ /^Running\s+under\s+machine:\s+(.+)$/ ) {
+			$test->{'uname'} = $1;
+
+		# parse any STDERR output
+		# !STDERR: unable to foo
+		} elsif ( $l =~ /^\!STDERR:\s+(.+)$/ ) {
+			push( @{ $test->{'stderr'} }, $1 );
+
+		} else {
+			# unknown line :(
+			push( @unknown, $l );
+		}
+	}
+
+	# Get rid of the rawdata
+	delete $test->{'raw'};
+
+	# Dump the unknowns
+	if ( @unknown ) {
+		print "\n[ANALYZER] Unknown output from benchmark -> " . Dump( \@unknown );
+	}
+
+	# Dump the data struct we have to the file.yml
+	my $yaml_file = 'results/' . delete $test->{'test'};
+	$yaml_file .= '.yml';
+	my $ret = open( my $fh, '>', $yaml_file );
+	if ( defined $ret ) {
+		print $fh Dump( $test );
+		if ( ! close( $fh ) ) {
+			print "\n[ANALYZER] Unable to close $yaml_file -> " . $! . "\n";
+		}
+	} else {
+		print "\n[ANALYZER] Unable to open $yaml_file for writing -> " . $! . "\n";
+	}
+
+	# now that we've dumped the stuff, we can do some sanity checks
+
+	# the POE we "think" we loaded should match reality!
+	if ( exists $test->{'poe'}->{'v_real'} ) {	# if this exists, then we successfully loaded POE
+		if ( $test->{'poe'}->{'v'} ne $test->{'poe'}->{'v_real'} ) {
+			print "\n[ANALYZER] The subprocess loaded a different version of POE than we thought -> $yaml_file\n";
+		}
+
+		# The loop we loaded should match what we wanted!
+		if ( exists $test->{'poe'}->{'modules'} ) {
+			if ( ! exists $test->{'poe'}->{'modules'}->{ $test->{'poe'}->{'loop'} } ) {
+				# gaah special-case for IO_Poll
+				if ( $test->{'poe'}->{'loop'} eq 'POE::Loop::IO_Poll' and exists $test->{'poe'}->{'modules'}->{'POE::Loop::Poll'} ) {
+					# ah, ignore this
+				} else {
+					print "\n[ANALYZER] The subprocess loaded a different Loop than we thought -> $yaml_file\n";
+				}
+			}
+		}
+	}
+
+	# the perl binary should be the same!
+	if ( exists $test->{'perl'} ) {		# if this exists, we successfully fired up the app ( no compile error )
+		if ( $test->{'perl'}->{'binary'} ne $^X ) {
+			print "\n[ANALYZER] The subprocess booted up on a different perl binary -> $yaml_file\n";
+		}
+		if ( $test->{'perl'}->{'v'} ne sprintf( "%vd", $^V ) ) {
+			print "\n[ANALYZER] The subprocess booted up on a different perl version -> $yaml_file\n";
+		}
+	}
+
+	# all done!
 	return;
 }
 
@@ -691,6 +887,8 @@ startups: This tests how long it took to start + close N instances of POE+Loop w
 
 This is actually a "super" test where all of the specific tests is ran against various POE::Loop::XYZ/FOO for comparison
 
+NOTE: Not all versions of POE support all Loops!
+
 =item POE Assertions
 
 This is actually a "super" test where all of the specific tests is ran against POE with/without assertions enabled
@@ -753,7 +951,7 @@ that is done it will begin autoprobing for available POE::Loop packages. Once it
 the benchmarks.
 
 As the Benchmarker goes through the combinations of POE + Eventloop + Assertions + XS::Queue it will dump data into
-the results directory. The Analyzer module also dumps YAML output in the same place, with the suffix of ".yml"
+the results directory. The module also dumps YAML output in the same place, with the suffix of ".yml"
 
 This module exposes only one subroutine, the benchmark() one. You can pass a hashref to it to set various options. Here is
 a list of the valid options:
@@ -762,7 +960,8 @@ a list of the valid options:
 
 =item freshstart => boolean
 
-This will tell the Benchmarker to ignore any previous test runs stored in the 'results' directory.
+This will tell the Benchmarker to ignore any previous test runs stored in the 'results' directory. This will not delete
+data from previous runs, only overwrite them. So be careful if you're mixing test runs from different versions!
 
 	benchmark( { freshstart => 1 } );
 

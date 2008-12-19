@@ -8,7 +8,6 @@ lib/POE/Devel/Benchmarker/GetInstalledLoops.pm
 lib/POE/Devel/Benchmarker/GetPOEdists.pm
 lib/POE/Devel/Benchmarker/SubProcess.pm
 lib/POE/Devel/Benchmarker/Utils.pm
-lib/POE/Devel/Benchmarker/Analyzer.pm
 lib/POE/Devel/Benchmarker/Imager.pm
 lib/POE/Devel/Benchmarker/Imager/BasicStatistics.pm
 META.yml

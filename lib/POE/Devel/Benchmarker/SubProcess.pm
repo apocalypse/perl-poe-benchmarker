@@ -40,6 +40,15 @@ BEGIN {
 	}
 }
 
+# process the eventloop
+BEGIN {
+	# FIXME figure out a better way to load loop with precision based on POE version
+#	if ( defined $ARGV[0] ) {
+#		eval "use POE::Kernel; use POE::Loop::$ARGV[0]";
+#		if ( $@ ) { die $@ }
+#	}
+}
+
 # Import Time::HiRes's time()
 use Time::HiRes qw( time );
 
@@ -62,12 +71,13 @@ use Socket qw( INADDR_ANY sockaddr_in );
 use version;
 
 # load our utility stuff
-use POE::Devel::Benchmarker::Utils qw( loop2realversion poeloop2load );
+use POE::Devel::Benchmarker::Utils qw( loop2realversion poeloop2load currentMetrics );
 
 # init our global variables ( bad, haha )
-# FIXME change this to a hash because it's becoming unwieldy with too many variables
 my( $eventloop, $asserts, $lite_tests, $pocosession );
-my( $post_limit, $alarm_limit, $alarm_add_limit, $session_limit, $select_limit, $through_limit, $call_limit, $start_limit, $sf_connects, $sf_stream );
+
+# setup our metrics and their data
+my %metrics = map { $_ => undef } @{ currentMetrics() };
 
 # the main routine which will load everything + start
 sub benchmark {
@@ -132,32 +142,43 @@ sub process_testmode {
 	# get the desired test mode
 	$lite_tests = $ARGV[2];
 
+	# setup most of the metrics
+	$metrics{'startups'}		=     10;
+
+	# event tests
+	foreach my $s ( qw( posts dispatches calls single_posts ) ) {
+		$metrics{ $s } = 10_000;
+	}
+
+	# session tests
+	foreach my $s ( qw( session_creates session_destroys ) ) {
+		$metrics{ $s } = 500;
+	}
+
+	# alarm tests
+	foreach my $s ( qw( alarms alarm_adds alarm_clears ) ) {
+		$metrics{ $s } = 10_000;
+	}
+
+	# select tests
+	foreach my $s ( qw( select_read_STDIN select_write_STDIN select_read_MYFH select_write_MYFH ) ) {
+		$metrics{ $s } = 10_000;
+	}
+
+	# socket tests
+	foreach my $s ( qw( socket_connects socket_stream ) ) {
+		$metrics{ $s } = 1_000;
+	}
+
 	if ( defined $lite_tests and $lite_tests ) {
 		print "Using the LITE tests\n";
-
-		$post_limit		= 10_000;
-		$alarm_limit		= 10_000;
-		$alarm_add_limit	= 10_000;
-		$session_limit		=    500;
-		$select_limit		= 10_000;
-		$through_limit		= 10_000;
-		$call_limit		= 10_000;
-		$start_limit		=     10;
-		$sf_connects		=  1_000;
-		$sf_stream		=  1_000;
 	} else {
 		print "Using the HEAVY tests\n";
 
-		$post_limit		= 100_000;
-		$alarm_limit		= 100_000;
-		$alarm_add_limit	= 100_000;
-		$session_limit		=   5_000;
-		$select_limit		= 100_000;
-		$through_limit		= 100_000;
-		$call_limit		= 100_000;
-		$start_limit		=     100;
-		$sf_connects		=  10_000;
-		$sf_stream		=  10_000;
+		# we simply multiply each metric by 10x
+		foreach my $s ( @{ currentMetrics() } ) {
+			$metrics{ $s } = $metrics{ $s } * 10;
+		}
 	}
 
 	return;
@@ -221,7 +242,7 @@ sub bench_startup {
 
 	my @start_times = times();
 	my $start = time();
-	for (my $i = 0; $i < $start_limit; $i++) {
+	for (my $i = 0; $i < $metrics{'startups'}; $i++) {
 		# FIXME should we add assertions?
 
 		# finally, fire it up!
@@ -237,7 +258,7 @@ sub bench_startup {
 	}
 	my @end_times = times();
 	my $elapsed = time() - $start;
-	printf( "\n\n% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $start_limit, 'startups', $elapsed, $start_limit/$elapsed );
+	printf( "\n\n% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'startups'}, 'startups', $elapsed, $metrics{'startups'}/$elapsed );
 	print "startups times: @start_times @end_times\n";
 
 	return;
@@ -337,12 +358,12 @@ sub poe_posts {
 	$_[KERNEL]->yield( 'posts_start' );
 	my $start = time();
 	my @start_times = times();
-	for (my $i = 0; $i < $post_limit; $i++) {
+	for (my $i = 0; $i < $metrics{'posts'}; $i++) {
 		$_[KERNEL]->yield( 'null' );
 	}
 	my @end_times = times();
 	my $elapsed = time() - $start;
-	printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $post_limit, 'posts', $elapsed, $post_limit/$elapsed );
+	printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'posts'}, 'posts', $elapsed, $metrics{'posts'}/$elapsed );
 	print "posts times: @start_times @end_times\n";
 	$_[KERNEL]->yield( 'posts_end' );
 
@@ -359,7 +380,7 @@ sub poe_posts_start {
 sub poe_posts_end {
 	my $elapsed = time() - $_[HEAP]->{start};
 	my @end_times = times();
-	printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $post_limit, 'dispatches', $elapsed, $post_limit/$elapsed );
+	printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'dispatches'}, 'dispatches', $elapsed, $metrics{'dispatches'}/$elapsed );
 	print "dispatches times: " . join( " ", @{ $_[HEAP]->{starttimes} } ) . " @end_times\n";
 	$_[KERNEL]->yield( 'alarms' );
 
@@ -370,12 +391,12 @@ sub poe_posts_end {
 sub poe_alarms {
 	my $start = time();
 	my @start_times = times();
-	for (my $i = 0; $i < $alarm_limit; $i++) {
+	for (my $i = 0; $i < $metrics{'alarms'}; $i++) {
 		$_[KERNEL]->alarm( whee => rand(1_000_000) );
 	}
 	my $elapsed = time() - $start;
 	my @end_times = times();
-	printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $alarm_limit, 'alarms', $elapsed, $alarm_limit/$elapsed );
+	printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'alarms'}, 'alarms', $elapsed, $metrics{'alarms'}/$elapsed );
 	print "alarms times: @start_times @end_times\n";
 	$_[KERNEL]->alarm( 'whee' => undef );
 	$_[KERNEL]->yield( 'manyalarms' );
@@ -391,12 +412,12 @@ sub poe_manyalarms {
 	if ( $_[KERNEL]->can( 'alarm_add' ) ) {
 		my $start = time();
 		my @start_times = times();
-		for (my $i = 0; $i < $alarm_add_limit; $i++) {
+		for (my $i = 0; $i < $metrics{'alarm_adds'}; $i++) {
 			$_[KERNEL]->alarm_add( whee => rand(1_000_000) );
 		}
 		my $elapsed = time() - $start;
 		my @end_times = times();
-		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $alarm_add_limit, 'alarm_adds', $elapsed, $alarm_add_limit/$elapsed );
+		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'alarm_adds'}, 'alarm_adds', $elapsed, $metrics{'alarm_adds'}/$elapsed );
 		print "alarm_adds times: @start_times @end_times\n";
 
 		$start = time();
@@ -404,7 +425,7 @@ sub poe_manyalarms {
 		$_[KERNEL]->alarm( whee => undef );
 		$elapsed = time() - $start;
 		@end_times = times();
-		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $alarm_add_limit, 'alarm_clears', $elapsed, $alarm_add_limit/$elapsed );
+		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'alarm_adds'}, 'alarm_clears', $elapsed, $metrics{'alarm_adds'}/$elapsed );
 		print "alarm_clears times: @start_times @end_times\n";
 	} else {
 		print "SKIPPING br0ken alarm_adds because alarm_add() NOT SUPPORTED on this version of POE\n";
@@ -422,12 +443,12 @@ sub poe_manyalarms {
 sub poe_sessions {
 	my $start = time();
 	my @start_times = times();
-	for (my $i = 0; $i < $session_limit; $i++) {
+	for (my $i = 0; $i < $metrics{'session_creates'}; $i++) {
 		POE::Session->$pocosession( 'inline_states' => { _start => sub {}, _stop => sub {}, _default => sub { return 0 } } );
 	}
 	my $elapsed = time() - $start;
 	my @end_times = times();
-	printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $session_limit, 'session_creates', $elapsed, $session_limit/$elapsed );
+	printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'session_creates'}, 'session_creates', $elapsed, $metrics{'session_creates'}/$elapsed );
 	print "session_creates times: @start_times @end_times\n";
 
 	$_[KERNEL]->yield( 'sessions_end' );
@@ -440,7 +461,7 @@ sub poe_sessions {
 sub poe_sessions_end {
 	my $elapsed = time() - $_[HEAP]->{start};
 	my @end_times = times();
-	printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $session_limit, 'session_destroys', $elapsed, $session_limit/$elapsed );
+	printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'session_creates'}, 'session_destroys', $elapsed, $metrics{'session_creates'}/$elapsed );
 	print "session_destroys times: " . join( " ", @{ $_[HEAP]->{starttimes} } ) . " @end_times\n";
 
 	$_[KERNEL]->yield( 'stdin_read' );
@@ -461,7 +482,7 @@ sub poe_stdin_read {
 	my $start = time();
 	my @start_times = times();
 	eval {
-		for (my $i = 0; $i < $select_limit; $i++) {
+		for (my $i = 0; $i < $metrics{'select_read_STDIN'}; $i++) {
 			$_[KERNEL]->select_read( *STDIN, 'whee' );
 			$_[KERNEL]->select_read( *STDIN );
 		}
@@ -471,7 +492,7 @@ sub poe_stdin_read {
 	} else {
 		my $elapsed = time() - $start;
 		my @end_times = times();
-		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $select_limit, 'select_read_STDIN', $elapsed, $select_limit/$elapsed );
+		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'select_read_STDIN'}, 'select_read_STDIN', $elapsed, $metrics{'select_read_STDIN'}/$elapsed );
 		print "select_read_STDIN times: @start_times @end_times\n";
 	}
 
@@ -485,7 +506,7 @@ sub poe_stdin_write {
 	my $start = time();
 	my @start_times = times();
 	eval {
-		for (my $i = 0; $i < $select_limit; $i++) {
+		for (my $i = 0; $i < $metrics{'select_write_STDIN'}; $i++) {
 			$_[KERNEL]->select_write( *STDIN, 'whee' );
 			$_[KERNEL]->select_write( *STDIN );
 		}
@@ -495,7 +516,7 @@ sub poe_stdin_write {
 	} else {
 		my $elapsed = time() - $start;
 		my @end_times = times();
-		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $select_limit, 'select_write_STDIN', $elapsed, $select_limit/$elapsed );
+		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'select_write_STDIN'}, 'select_write_STDIN', $elapsed, $metrics{'select_write_STDIN'}/$elapsed );
 		print "select_write_STDIN times: @start_times @end_times\n";
 	}
 
@@ -518,7 +539,7 @@ sub poe_myfh_read {
 	my @start_times = times();
 	eval {
 		open( my $fh, '+>', 'poebench' ) or die $!;
-		for (my $i = 0; $i < $select_limit; $i++) {
+		for (my $i = 0; $i < $metrics{'select_read_MYFH'}; $i++) {
 			$_[KERNEL]->select_read( $fh, 'whee' );
 			$_[KERNEL]->select_read( $fh );
 		}
@@ -530,7 +551,7 @@ sub poe_myfh_read {
 	} else {
 		my $elapsed = time() - $start;
 		my @end_times = times();
-		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $select_limit, 'select_read_MYFH', $elapsed, $select_limit/$elapsed );
+		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'select_read_MYFH'}, 'select_read_MYFH', $elapsed, $metrics{'select_read_MYFH'}/$elapsed );
 		print "select_read_MYFH times: @start_times @end_times\n";
 	}
 
@@ -545,7 +566,7 @@ sub poe_myfh_write {
 	my @start_times = times();
 	eval {
 		open( my $fh, '+>', 'poebench' ) or die $!;
-		for (my $i = 0; $i < $select_limit; $i++) {
+		for (my $i = 0; $i < $metrics{'select_write_MYFH'}; $i++) {
 			$_[KERNEL]->select_write( $fh, 'whee' );
 			$_[KERNEL]->select_write( $fh );
 		}
@@ -557,7 +578,7 @@ sub poe_myfh_write {
 	} else {
 		my $elapsed = time() - $start;
 		my @end_times = times();
-		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $select_limit, 'select_write_MYFH', $elapsed, $select_limit/$elapsed );
+		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'select_write_MYFH'}, 'select_write_MYFH', $elapsed, $metrics{'select_write_MYFH'}/$elapsed );
 		print "select_write_MYFH times: @start_times @end_times\n";
 	}
 
@@ -570,12 +591,12 @@ sub poe_myfh_write {
 sub poe_calls {
 	my $start = time();
 	my @start_times = times();
-	for (my $i = 0; $i < $call_limit; $i++) {
+	for (my $i = 0; $i < $metrics{'calls'}; $i++) {
 		$_[KERNEL]->call( $_[SESSION], 'null' );
 	}
 	my $elapsed = time() - $start;
 	my @end_times = times();
-	printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $call_limit, 'calls', $elapsed, $call_limit/$elapsed );
+	printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'calls'}, 'calls', $elapsed, $metrics{'calls'}/$elapsed );
 	print "calls times: @start_times @end_times\n";
 
 	$_[KERNEL]->yield( 'eventsquirt' );
@@ -587,7 +608,7 @@ sub poe_calls {
 sub poe_eventsquirt {
 	$_[HEAP]->{start} = time();
 	$_[HEAP]->{starttimes} = [ times() ];
-	$_[HEAP]->{yield_count} = $through_limit;
+	$_[HEAP]->{yield_count} = $metrics{'single_posts'};
 	$_[KERNEL]->yield( 'eventsquirt_done' );
 
 	return;
@@ -599,7 +620,7 @@ sub poe_eventsquirt_done {
 	} else {
 		my $elapsed = time() - $_[HEAP]->{start};
 		my @end_times = times();
-		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $through_limit, 'single_posts', $elapsed, $through_limit/$elapsed );
+		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'single_posts'}, 'single_posts', $elapsed, $metrics{'single_posts'}/$elapsed );
 		print "single_posts times: " . join( " ", @{ $_[HEAP]->{starttimes} } ) . " @end_times\n";
 
 		$_[KERNEL]->yield( 'socketfactory' );
@@ -631,8 +652,8 @@ sub poe_socketfactory {
 	( $_[HEAP]->{'SF_port'}, undef ) = sockaddr_in( getsockname( $_[HEAP]->{'SF'}->[ POE::Wheel::SocketFactory::MY_SOCKET_HANDLE() ] ) );
 
 	# start the connect tests
-	$_[HEAP]->{'SF_counter'} = $sf_connects;
-	$_[HEAP]->{'SF_mode'} = 'CONNECTS';
+	$_[HEAP]->{'SF_counter'} = $metrics{'socket_connects'};
+	$_[HEAP]->{'SF_mode'} = 'socket_connects';
 	$_[HEAP]->{'start'} = time();
 	$_[HEAP]->{'starttimes'} = [ times() ];
 	$_[KERNEL]->yield( 'socketfactory_connects' );
@@ -643,9 +664,9 @@ sub poe_socketfactory {
 # handles SocketFactory connection
 sub poe_server_sf_connect {
 	# what test mode?
-	if ( $_[HEAP]->{'SF_mode'} eq 'CONNECTS' ) {
+	if ( $_[HEAP]->{'SF_mode'} eq 'socket_connects' ) {
 		# simply discard this socket
-	} elsif ( $_[HEAP]->{'SF_mode'} eq 'STREAM' ) {
+	} elsif ( $_[HEAP]->{'SF_mode'} eq 'socket_stream' ) {
 		# convert it to ReadWrite
 		my $wheel = POE::Wheel::ReadWrite->new(
 			'Handle'	=> $_[ARG0],
@@ -679,9 +700,9 @@ sub poe_server_sf_failure {
 # handles ReadWrite input
 sub poe_server_rw_input {
 	# what test mode?
-	if ( $_[HEAP]->{'SF_mode'} eq 'CONNECTS' ) {
+	if ( $_[HEAP]->{'SF_mode'} eq 'socket_connects' ) {
 		# simply discard this data
-	} elsif ( $_[HEAP]->{'SF_mode'} eq 'STREAM' ) {
+	} elsif ( $_[HEAP]->{'SF_mode'} eq 'socket_stream' ) {
 		# send it back to the client!
 		$_[HEAP]->{'RW'}->{ $_[ARG1] }->put( $_[ARG0] );
 	} else {
@@ -721,7 +742,7 @@ sub poe_socketfactory_connects {
 	} else {
 		my $elapsed = time() - $_[HEAP]->{start};
 		my @end_times = times();
-		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $sf_connects, 'socket_connects', $elapsed, $sf_connects/$elapsed );
+		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'socket_connects'}, 'socket_connects', $elapsed, $metrics{'socket_connects'}/$elapsed );
 		print "socket_connects times: " . join( " ", @{ $_[HEAP]->{starttimes} } ) . " @end_times\n";
 
 		$_[KERNEL]->yield( 'socketfactory_stream' );
@@ -733,7 +754,7 @@ sub poe_socketfactory_connects {
 # starts the client stream tests
 sub poe_socketfactory_stream {
 	# set the proper test mode
-	$_[HEAP]->{'SF_mode'} = 'STREAM';
+	$_[HEAP]->{'SF_mode'} = 'socket_stream';
 
 	# open a new client connection!
 	$_[HEAP]->{'client_SF'} = POE::Wheel::SocketFactory->new(
@@ -750,13 +771,13 @@ sub poe_socketfactory_stream {
 # the client connected to the server!
 sub poe_client_sf_connect {
 	# what test mode?
-	if ( $_[HEAP]->{'SF_mode'} eq 'CONNECTS' ) {
+	if ( $_[HEAP]->{'SF_mode'} eq 'socket_connects' ) {
 		# simply discard this connection
 		delete $_[HEAP]->{'client_SF'};
 
 		# make another connection!
 		$_[KERNEL]->yield( 'socketfactory_connects' );
-	} elsif ( $_[HEAP]->{'SF_mode'} eq 'STREAM' ) {
+	} elsif ( $_[HEAP]->{'SF_mode'} eq 'socket_stream' ) {
 		# convert it to ReadWrite
 		my $wheel = POE::Wheel::ReadWrite->new(
 			'Handle'	=> $_[ARG0],
@@ -771,8 +792,8 @@ sub poe_client_sf_connect {
 		$_[HEAP]->{'client_RW'}->{ $wheel->ID } = $wheel;
 
 		# begin the STREAM test!
-		$_[HEAP]->{'SF_counter'} = $sf_stream;
-		$_[HEAP]->{'SF_data'} = 'x' x ( $sf_stream / 10 );	# set a reasonable-sized chunk of data
+		$_[HEAP]->{'SF_counter'} = $metrics{'socket_stream'};
+		$_[HEAP]->{'SF_data'} = 'x' x ( $metrics{'socket_stream'} / 10 );	# set a reasonable-sized chunk of data
 		$_[HEAP]->{'start'} = time();
 		$_[HEAP]->{'starttimes'} = [ times() ];
 
@@ -787,12 +808,12 @@ sub poe_client_sf_connect {
 # handles SocketFactory errors
 sub poe_client_sf_failure {
 	# ARGH, we couldnt create connecting socket
-	if ( $_[HEAP]->{'SF_mode'} eq 'CONNECTS' ) {
+	if ( $_[HEAP]->{'SF_mode'} eq 'socket_connects' ) {
 		print "SKIPPING br0ken socket_connects because we were unable to setup connecting socket\n";
 
 		# go to stream test
 		$_[KERNEL]->yield( 'socketfactory_stream' );
-	} elsif ( $_[HEAP]->{'SF_mode'} eq 'STREAM' ) {
+	} elsif ( $_[HEAP]->{'SF_mode'} eq 'socket_stream' ) {
 		print "SKIPPING br0ken socket_stream because we were unable to setup connecting socket\n";
 
 		$_[KERNEL]->yield( 'socketfactory_cleanup' );
@@ -809,7 +830,7 @@ sub poe_client_rw_input {
 	} else {
 		my $elapsed = time() - $_[HEAP]->{start};
 		my @end_times = times();
-		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $sf_stream, 'socket_stream', $elapsed, $sf_stream/$elapsed );
+		printf( "% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'socket_stream'}, 'socket_stream', $elapsed, $metrics{'socket_stream'}/$elapsed );
 		print "socket_stream times: " . join( " ", @{ $_[HEAP]->{starttimes} } ) . " @end_times\n";
 
 		$_[KERNEL]->yield( 'socketfactory_cleanup' );

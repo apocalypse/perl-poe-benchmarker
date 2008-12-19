@@ -46,6 +46,7 @@ my $build = Module::Build->new(
 
 		# Imager reqs
 		'GD::Graph::lines'		=> 0,
+		'GD::Graph::colour'		=> 0,
 		'Class::Accessor::Fast'		=> 0,
 		'Module::Pluggable'		=> 0,
 

@@ -9,12 +9,21 @@ $VERSION = '0.05';
 # set ourself up for exporting
 use base qw( Exporter );
 our @EXPORT_OK = qw( poeloop2load load2poeloop loop2realversion beautify_times knownloops generateTestfile
-	currentMetrics
+	currentMetrics currentTestVersion
 );
+
+# returns the current test output version
+sub currentTestVersion {
+	return '1';
+}
 
 # returns the list of current metrics
 sub currentMetrics {
-	return [ qw( alarms dispatches posts single_posts startups
+	return [ qw(
+		startups
+		alarms alarm_adds alarm_clears
+		dispatches posts single_posts
+		session_creates session_destroys
 		select_read_MYFH select_write_MYFH select_read_STDIN select_write_STDIN
 		socket_connects socket_stream
 	) ];
@@ -159,6 +168,10 @@ This package contains the utility routines and constants that POE::Devel::Benchm
 This package exports those subs via @EXPORT_OK:
 
 =over 4
+
+=item currentTestVersion()
+
+Returns the current test version, used to identify different versions of the test output
 
 =item currentMetrics()
 

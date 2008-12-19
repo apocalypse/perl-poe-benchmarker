@@ -8,6 +8,7 @@ $VERSION = '0.05';
 
 # the GD stuff
 use GD::Graph::lines;
+use GD::Graph::colour qw( :lists );
 
 # import some stuff
 use POE::Devel::Benchmarker::Utils qw( currentMetrics );
@@ -66,7 +67,9 @@ sub generate_loopoptions {
 							next;
 						}
 
-						if ( exists $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
+						# sometimes we cannot test a metric
+						if ( exists $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }
+							and exists $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
 							and defined $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
 							) {
 							push( @{ $data{ $assert . '_' . $xsqueue } }, $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'} );
@@ -77,17 +80,20 @@ sub generate_loopoptions {
 				}
 			}
 
-			# transform %data into something GD likes
-			my @data_for_gd;
-			foreach my $m ( sort keys %data ) {
-				push( @data_for_gd, $data{ $m } );
-			}
+			# it's possible for us to do runs without assert/xsqueue
+			if ( scalar keys %data > 0 ) {
+				# transform %data into something GD likes
+				my @data_for_gd;
+				foreach my $m ( sort keys %data ) {
+					push( @data_for_gd, $data{ $m } );
+				}
 
-			# send it to GD!
-			$self->make_gdgraph(	'Options_' . $loop . '_' . $metric,
-						[ sort keys %data ],
-						\@data_for_gd,
-			);
+				# send it to GD!
+				$self->make_gdgraph(	'Options_' . $loop . '_' . $metric,
+							[ sort keys %data ],
+							\@data_for_gd,
+				);
+			}
 		}
 	}
 
@@ -118,7 +124,9 @@ sub generate_loopperf {
 				# organize data by POE version
 				foreach my $poe ( @{ $self->{'imager'}->poe_versions_sorted } ) {
 					foreach my $metric ( @{ currentMetrics() } ) {
-						if ( exists $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
+						# sometimes we cannot test a metric
+						if ( exists $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }
+							and exists $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
 							and defined $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
 							) {
 							push( @{ $data{ $metric } }, $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'} );
@@ -160,13 +168,21 @@ sub generate_loopwars {
 	foreach my $metric ( @{ currentMetrics() } ) {
 		# go through the combo of assert/xsqueue
 		foreach my $assert ( qw( assert noassert ) ) {
+			if ( ! exists $self->{'imager'}->data->{ $assert } ) {
+				next;
+			}
 			foreach my $xsqueue ( qw( xsqueue noxsqueue ) ) {
+				if ( ! exists $self->{'imager'}->data->{ $assert }->{ $xsqueue } ) {
+					next;
+				}
 				my %data;
 
 				# organize data by POE version
 				foreach my $poe ( @{ $self->{'imager'}->poe_versions_sorted } ) {
 					foreach my $loop ( keys %{ $self->{'imager'}->poe_loops } ) {
-						if ( exists $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
+						# sometimes we cannot test a metric
+						if ( exists $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }
+							and exists $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
 							and defined $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'}
 							) {
 							push( @{ $data{ $loop } }, $self->{'imager'}->data->{ $assert }->{ $xsqueue }->{ $poe }->{ $loop }->{'metrics'}->{ $metric }->{'i'} );
@@ -204,23 +220,37 @@ sub make_gdgraph {
 	my $assert = shift;
 	my $xsqueue = shift;
 
+	# build the title
+	my $title = $metric;
+	if ( defined $assert ) {
+		$title .= ' (';
+		if ( defined $xsqueue ) {
+			$title .= $assert . ' ' . $xsqueue;
+		} else {
+			$title .= $assert;
+		}
+		$title .= ')';
+	} else {
+		if ( defined $xsqueue ) {
+			$title .= ' (' . $xsqueue . ')';
+		}
+	}
+
 	# Get the graph object
 	my $graph = new GD::Graph::lines( 800, 600 );
 
 	# Set some stuff
 	$graph->set(
-#		'x_label'		=>	'POE Versions',
-		'title'			=>	$metric . ( defined $xsqueue ? " ($assert - $xsqueue)" : '' ),
-		'line_width'		=>	1,
-		'boxclr'		=>	'black',
-		'overwrite'		=>	0,
-		'x_labels_vertical'	=>	1,
-		'x_all_ticks'		=>	1,
-		'legend_placement'	=>	'BL',
-		'y_label'		=>	'iterations/sec',
-
-		# 3d options only
-		#'line_depth'		=>	2.5,
+		'title'			=> $title,
+		'line_width'		=> 1,
+		'boxclr'		=> 'black',
+		'overwrite'		=> 0,
+		'x_labels_vertical'	=> 1,
+		'x_all_ticks'		=> 1,
+		'legend_placement'	=> 'BL',
+		'y_label'		=> 'iterations/sec',
+		'transparent'		=> 0,
+		'long_ticks'		=> 1,
 	) or die $graph->error;
 
 	# Set the legend
@@ -232,6 +262,9 @@ sub make_gdgraph {
 	$graph->set_y_axis_font( GD::gdMediumBoldFont );
 	$graph->set_y_label_font( GD::gdMediumBoldFont );
 	$graph->set_title_font( GD::gdGiantFont );
+
+	# set the line colors
+	$graph->set( 'dclrs' => [ grep { $_ ne 'black' and $_ ne 'white' } sorted_colour_list() ] );
 
 	# Manufacture the data
 	my $readydata = [
