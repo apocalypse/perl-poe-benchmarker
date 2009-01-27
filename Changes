@@ -6,6 +6,7 @@ Revision history for Perl extension POE::Devel::Benchmarker
 	Added the socket tests, yay! ( adapted from LotR's script, thanks! )
 	Some more tweaks to the BasicStatistics plugin for prettier graphs
 	Lots of refactoring to get things cleaned up :)
+	Added test versioning, so we make sure we're processing the right version :)
 
 * 0.04
 
