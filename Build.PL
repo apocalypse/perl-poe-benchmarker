@@ -76,7 +76,6 @@ my $build = Module::Build->new(
 		'EV'				=> 0,
 		'Glib'				=> 0,
 		'Prima'				=> 0,
-		'Gtk'				=> 0,
 		'Wx'				=> 0,
 		'Tk'				=> 0,
 
