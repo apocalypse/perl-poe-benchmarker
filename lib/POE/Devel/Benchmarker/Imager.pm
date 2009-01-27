@@ -295,7 +295,10 @@ sub process_data {
 	my $self = shift;
 
 	# sanitize the versions in an ordered loop
-	$self->{'poe_versions_sorted'} = [ map { $_->stringify } sort { $a <=> $b } map { version->new($_) } keys %{ $self->poe_versions } ];
+	$self->{'poe_versions_sorted'} = [ map { $_->stringify }
+		sort { $a <=> $b }
+		map { version->new($_) } keys %{ $self->poe_versions }
+	];
 
 	if ( ! $self->quiet ) {
 		print "[IMAGER] Done with processing the benchmark statistics...\n";

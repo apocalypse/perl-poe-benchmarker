@@ -33,3 +33,4 @@ t/a_prereq_build.t
 t/a_dosnewline.t
 t/a_perlmetrics.t
 t/a_is_prereq_outdated.t
+t/a_metayml.t

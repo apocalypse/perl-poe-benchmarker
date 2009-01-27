@@ -51,7 +51,7 @@ sub load_yml {
 	if ( $@ ) {
 		plan skip_all => "Unable to load $file => $@";
 	} else {
-		note "Loaded $file, proceeding with analysis";
+		note( "Loaded $file, proceeding with analysis" );
 	}
 
 	# massage the data
@@ -104,11 +104,9 @@ sub check_cpan {
 			my @versions = split( ',', $version );
 
 			# sort them by version, descending
-			@versions =
-				sort { $b <=> $a }
-				map { version->new( $_ ) }
-				map { $_ =~ s/[\s<>=!]+//; $_ }
-				@versions;
+			s/[\s<>=!]+// for @versions;
+			@versions = sort { $b <=> $a }
+				map { version->new( $_ ) } @versions;
 
 			# pick the highest version to use as comparison
 			$version = $versions[0];
