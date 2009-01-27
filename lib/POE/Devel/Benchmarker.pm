@@ -1103,6 +1103,40 @@ the concept somewhat moot. Maybe, after POE has progressed some versions we can 
 
 L<POE>
 
+=head1 SUPPORT
+
+You can find documentation for this module with the perldoc command.
+
+    perldoc POE::Devel::Benchmarker
+
+=head2 Websites
+
+=over 4
+
+=item * AnnoCPAN: Annotated CPAN documentation
+
+L<http://annocpan.org/dist/POE-Devel-Benchmarker>
+
+=item * CPAN Ratings
+
+L<http://cpanratings.perl.org/d/POE-Devel-Benchmarker>
+
+=item * RT: CPAN's request tracker
+
+L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=POE-Devel-Benchmarker>
+
+=item * Search CPAN
+
+L<http://search.cpan.org/dist/POE-Devel-Benchmarker>
+
+=back
+
+=head2 Bugs
+
+Please report any bugs or feature requests to C<bug-poe-devel-benchmarker at rt.cpan.org>, or through
+the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=POE-Devel-Benchmarker>.  I will be
+notified, and then you'll automatically be notified of progress on your bug as I make changes.
+
 =head1 AUTHOR
 
 Apocalypse E<lt>apocal@cpan.orgE<gt>
@@ -1111,7 +1145,7 @@ BIG THANKS goes to Rocco Caputo E<lt>rcaputo@cpan.orgE<gt> for the first benchma
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2008 by Apocalypse
+Copyright 2009 by Apocalypse
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

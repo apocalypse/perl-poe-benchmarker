@@ -79,8 +79,10 @@ my $build = Module::Build->new(
 		'Wx'				=> 0,
 		'Tk'				=> 0,
 
-		# the XS queue
+		# the XS stuff
 		'POE::XS::Queue::Array'		=> 0,
+		'POE::XS::Loop::Poll'		=> 0,
+		'POE::XS::Loop::EPoll'		=> 0,
 	},
 
 	# FIXME wishlist...
@@ -101,6 +103,7 @@ my $build = Module::Build->new(
 #		'Test::Prereq'		=> 0,
 #		'Test::Strict'		=> 0,
 #		'Test::UseAllModules'	=> 0,
+#		'Test::YAML::Meta'	=> 0,
 #	},
 );
 
