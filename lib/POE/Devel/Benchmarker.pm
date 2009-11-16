@@ -1069,6 +1069,9 @@ drop me a line and let me know!
 
 dngor said there was some benchmarks in the POE svn under trunk/queue...
 
+	<dngor> Apocalypse: Check out the old benchmarks in the queue directory in POE's repot.
+	They profile queue performance at various sizes, which is a better indication of scalability.
+
 Tapout contributed a script that tests HTTP performance, let's see if it deserves to be in the suite :)
 
 I added the preliminary socket tests, we definitely should expand it seeing how many people use POE for networking...
