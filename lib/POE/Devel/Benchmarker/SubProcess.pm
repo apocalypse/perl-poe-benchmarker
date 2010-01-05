@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.05';
+$VERSION = '0.06';
 
 # set our compile-time stuff
 BEGIN {
@@ -38,15 +38,6 @@ BEGIN {
 		eval "use Devel::Hide qw( $hide )";
 		## use critic
 	}
-}
-
-# process the eventloop
-BEGIN {
-	# FIXME figure out a better way to load loop with precision based on POE version
-#	if ( defined $ARGV[0] ) {
-#		eval "use POE::Kernel; use POE::Loop::$ARGV[0]";
-#		if ( $@ ) { die $@ }
-#	}
 }
 
 # Import Time::HiRes's time()
@@ -243,7 +234,7 @@ sub bench_startup {
 	my @start_times = times();
 	my $start = time();
 	for (my $i = 0; $i < $metrics{'startups'}; $i++) {
-		# FIXME should we add assertions?
+		# We do not care about assert/xsqueue for startups, so we don't include them here...
 
 		# finally, fire it up!
 		CORE::system(
@@ -251,9 +242,8 @@ sub bench_startup {
 			'-Ipoedists/POE-' . $POE::VERSION,
 			'-Ipoedists/POE-' . $POE::VERSION . '/lib',
 			( defined $looploader ? "-M$looploader" : () ),
-			'-MPOE',
 			'-e',
-			1,
+			$asserts ? 'sub POE::Kernel::ASSERT_DEFAULT () { 1 } sub POE::Session::ASSERT_STATES () { 1 } use POE; 1;' : 'use POE; 1;',
 		);
 	}
 	my @end_times = times();
@@ -716,7 +706,7 @@ sub poe_server_rw_input {
 sub poe_server_rw_error {
 	# simply get rid of the wheel
 	if ( exists $_[HEAP]->{'RW'}->{ $_[ARG3] } ) {
-		# FIXME do we need this?
+		# shutdown everything, so we don't have any lingering sockets
 		eval {
 			$_[HEAP]->{'RW'}->{ $_[ARG3] }->shutdown_input;
 			$_[HEAP]->{'RW'}->{ $_[ARG3] }->shutdown_output;
@@ -844,7 +834,7 @@ sub poe_client_rw_input {
 sub poe_client_rw_error {
 	# simply get rid of the wheel
 	if ( exists $_[HEAP]->{'client_RW'}->{ $_[ARG3] } ) {
-		# FIXME do we need this?
+		# shutdown everything, so we don't have any lingering sockets
 		eval {
 			$_[HEAP]->{'client_RW'}->{ $_[ARG3] }->shutdown_input;
 			$_[HEAP]->{'client_RW'}->{ $_[ARG3] }->shutdown_output;
@@ -864,7 +854,7 @@ sub poe_socketfactory_cleanup {
 	delete $_[HEAP]->{'client_SF'} if exists $_[HEAP]->{'client_SF'};
 	delete $_[HEAP]->{'client_RW'} if exists $_[HEAP]->{'client_RW'};
 
-	# XXX all done with tests!
+	# all done with tests!
 	return;
 }
 
@@ -928,15 +918,11 @@ POE::Devel::Benchmarker::SubProcess - Implements the actual POE benchmarks
 
 =head1 SYNOPSIS
 
-	perl -MPOE::Devel::Benchmarker::SubProcess -e 'benchmark()'
+	die "Don't use this module directly. Please use POE::Devel::Benchmarker instead.";
 
 =head1 ABSTRACT
 
 This package is responsible for implementing the guts of the benchmarks, and timing them.
-
-=head1 EXPORT
-
-Nothing.
 
 =head1 SEE ALSO
 
@@ -948,7 +934,7 @@ Apocalypse E<lt>apocal@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2009 by Apocalypse
+Copyright 2010 by Apocalypse
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

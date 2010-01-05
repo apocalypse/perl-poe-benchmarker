@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.05';
+$VERSION = '0.06';
 
 # auto-export the only sub we have
 use base qw( Exporter );
@@ -12,6 +12,7 @@ our @EXPORT = qw( imager );
 
 # import the helper modules
 use YAML::Tiny;
+use File::Spec;
 
 # load our plugins!
 use Module::Pluggable search_path => [ __PACKAGE__ ];
@@ -196,7 +197,7 @@ sub loadtests {
 sub load_yaml {
 	my ( $self, $file, $ver, $loop, $lite, $assert, $xsqueue ) = @_;
 
-	my $yaml = YAML::Tiny->read( 'results/' . $file );
+	my $yaml = YAML::Tiny->read( File::Spec->catfile( 'results', $file ) );
 	if ( ! defined $yaml ) {
 		print "[IMAGER] Unable to load YAML file $file -> " . YAML::Tiny->errstr . "\n";
 		return;
@@ -334,15 +335,16 @@ sub generate_images {
 			} else {
 				die "barf";
 			}
-			if ( ! -d "images/$homedir" ) {
+			$homedir = File::Spec->catdir( 'images', $homedir );
+			if ( ! -d $homedir ) {
 				# create it!
-				if ( ! mkdir( "images/$homedir" ) ) {
+				if ( ! mkdir( $homedir ) ) {
 					die "[IMAGER] Unable to create plugin directory: $homedir";
 				}
 			}
 
 			# Okay, get this plugin!
-			my $obj = $plugin->new( { 'dir' => "images/$homedir/" } );
+			my $obj = $plugin->new( { 'dir' => $homedir } );
 
 			if ( ! $self->quiet ) {
 				print "[IMAGER] Processing the $plugin plugin...\n";
@@ -361,14 +363,17 @@ sub generate_images {
 
 1;
 __END__
+
+=for stopwords YAML litetests namespace noassert noxsqueue plugin xsqueue
+
 =head1 NAME
 
 POE::Devel::Benchmarker::Imager - Automatically converts the benchmark data into images
 
 =head1 SYNOPSIS
 
-	apoc@apoc-x300:~$ cd poe-benchmarker
-	apoc@apoc-x300:~/poe-benchmarker$ perl -MPOE::Devel::Benchmarker::Imager -e 'imager'
+	use POE::Devel::Benchmarker::Imager;
+	imager();
 
 =head1 ABSTRACT
 
@@ -384,6 +389,9 @@ Furthermore, we use Module::Pluggable to search all modules in the POE::Devel::B
 let them handle the generation of images. That way virtually unlimited combinations of images can be generated on the fly
 from the data this module parses.
 
+	apoc@apoc-x300:~$ cd poe-benchmarker
+	apoc@apoc-x300:~/poe-benchmarker$ perl -MPOE::Devel::Benchmarker::Imager -e 'imager'
+
 The way to use this module is by calling the imager() subroutine and let it do it's job. You can pass a hashref to it to
 set various options. Here is a list of the valid options:
 
@@ -393,7 +401,7 @@ set various options. Here is a list of the valid options:
 
 This enables quiet mode which will not print anything to the console except for errors.
 
-	new( { 'quiet' => 1 } );
+	imager( { 'quiet' => 1 } );
 
 default: false
 
@@ -401,7 +409,7 @@ default: false
 
 This will tell the Imager to not consider those tests for the output.
 
-	benchmark( { noxsqueue => 1 } );
+	imager( { noxsqueue => 1 } );
 
 default: undef ( load both xsqueue and noxsqueue tests )
 
@@ -409,7 +417,7 @@ default: undef ( load both xsqueue and noxsqueue tests )
 
 This will tell the Imager to not consider those tests for the output
 
-	benchmark( { noasserts => 1 } );
+	imager( { noasserts => 1 } );
 
 default: undef ( load both assert and noassert tests )
 
@@ -417,7 +425,7 @@ default: undef ( load both assert and noassert tests )
 
 This will tell the Imager to not consider those tests for the output
 
-	benchmark( { litetests => 0 } );
+	imager( { litetests => 0 } );
 
 default: true
 
@@ -441,7 +449,7 @@ Apocalypse E<lt>apocal@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2009 by Apocalypse
+Copyright 2010 by Apocalypse
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

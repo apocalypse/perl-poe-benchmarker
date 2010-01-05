@@ -1,4 +1,5 @@
 # Build.PL
+use strict; use warnings;
 use Module::Build;
 
 my $build = Module::Build->new(
@@ -13,27 +14,23 @@ my $build = Module::Build->new(
 	'create_packlist'	=> 1,
 	'create_makefile_pl'	=> 'traditional',
 	'create_readme'		=> 1,
+	'create_license'	=> 1,
+	'sign'			=> 0,
 
 	'test_files'		=> 't/*.t',
 
-	'add_to_cleanup'	=> [ 'META.yml', 'Makefile.PL', 'README' ],	# automatically generated
+	'add_to_cleanup'	=> [ 'META.yml', 'Makefile.PL', 'README', 'Makefile', 'LICENSE' ],	# automatically generated
 
 	'requires'		=> {
 		# POE Stuff
 		'POE'				=> 0,
 		'POE::Session::AttributeBased'	=> 0,
 
-		# FIXME POE stuff that Test::Dependencies needs to see
-		'POE::Session'			=> 0,
-		'POE::Wheel::SocketFactory'	=> 0,
-		'POE::Wheel::ReadWrite'		=> 0,
-		'POE::Filter::Line'		=> 0,
-		'POE::Driver::SysRW'		=> 0,
-
 		# misc perl stuff
 		'Time::HiRes'			=> 0,
 		'version'			=> 0,
 		'Devel::Hide'			=> 0,
+		'File::Spec'			=> 0,
 
 		# Analyzer reqs
 		'YAML::Tiny'			=> 0,
@@ -51,7 +48,10 @@ my $build = Module::Build->new(
 		'Module::Pluggable'		=> 0,
 
 		# Test stuff
-		'Test::More'			=> '0.86',	# require latest for note() support in t/a_is_prereq_outdated.t
+		'Test::More'			=> 0,
+
+		# we need a recent perl
+		'perl'				=> '5.008',
 	},
 
 	'recommends'		=> {
@@ -85,26 +85,15 @@ my $build = Module::Build->new(
 		'POE::XS::Loop::EPoll'		=> 0,
 	},
 
-	# FIXME wishlist...
-#	'test_requires'		=> {
-#		# Test stuff
-#		'Test::Compile'		=> 0,
-#		'Test::Perl::Critic'	=> 0,
-#		'Test::Dependencies'	=> 0,
-#		'Test::Distribution'	=> 0,
-#		'Test::Fixme'		=> 0,
-#		'Test::HasVersion'	=> 0,
-#		'Test::Kwalitee'	=> 0,
-#		'Test::CheckManifest'	=> 0,
-#		'Test::MinimumVersion'	=> 0,
-#		'Test::Pod::Coverage'	=> 0,
-#		'Test::Spelling'	=> 0,
-#		'Test::Pod'		=> 0,
-#		'Test::Prereq'		=> 0,
-#		'Test::Strict'		=> 0,
-#		'Test::UseAllModules'	=> 0,
-#		'Test::YAML::Meta'	=> 0,
-#	},
+	# include the standard stuff in META.yml
+	'meta_merge'	=> {
+		'resources'	=> {
+			'license'	=> 'http://dev.perl.org/licenses/',
+			'homepage'	=> 'http://search.cpan.org/dist/POE-Devel-Benchmarker',
+			'bugtracker'	=> 'http://rt.cpan.org/NoAuth/Bugs.html?Dist=POE-Devel-Benchmarker',
+			'repository'	=> 'http://github.com/apocalypse/perl-poe-benchmarker',
+		},
+	},
 );
 
 # all done!

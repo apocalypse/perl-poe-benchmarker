@@ -4,24 +4,21 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.05';
+$VERSION = '0.06';
 
 # auto-export the only sub we have
 use base qw( Exporter );
 our @EXPORT = qw( benchmark );
 
-# we need hires times
+# load needed modules
 use Time::HiRes qw( time );
+use version;
+use YAML::Tiny qw( Dump );
+use File::Spec;
 
 # Import what we need from the POE namespace
 use POE qw( Session Filter::Line Wheel::Run );
 use base 'POE::Session::AttributeBased';
-
-# load comparison stuff
-use version;
-
-# use the power of YAML
-use YAML::Tiny qw( Dump );
 
 # Load our stuff
 use POE::Devel::Benchmarker::GetInstalledLoops;
@@ -384,12 +381,12 @@ sub bench_checkprevioustest : State {
 	# okay, do we need to check and see if we already did this test?
 	if ( ! $_[HEAP]->{'freshstart'} ) {
 		# determine the file used
-		my $file = generateTestfile( $_[HEAP] );
+		my $file = File::Spec->catfile( 'results', generateTestfile( $_[HEAP] ) . '.yml' );
 
 		# does it exist?
-		if ( -e "results/$file.yml" and -f _ and -s _ ) {
+		if ( -e $file and -f _ and -s _ ) {
 			# okay, sanity check it
-			my $yaml = YAML::Tiny->read( "results/$file.yml" );
+			my $yaml = YAML::Tiny->read( $file );
 			if ( defined $yaml ) {
 				# inrospect it!
 				my $isvalid = 0;
@@ -397,13 +394,16 @@ sub bench_checkprevioustest : State {
 					# simple sanity check: the "x_bench" param is at the end of the YML, so if it loads fine we know it's there
 					if ( exists $yaml->[0]->{'x_bench'} ) {
 						# version must at least match us
-						$isvalid = ( $yaml->[0]->{'x_bench'} eq $POE::Devel::Benchmarker::VERSION ? 1 : 0 );
+						$isvalid = ( $yaml->[0]->{'x_bench'} eq currentTestVersion() ? 1 : 0 );
 					} else {
 						$isvalid = undef;
 					}
 				};
 				if ( $isvalid ) {
 					# yay, this test is A-OK!
+					if ( ! $_[HEAP]->{'quiet_mode'} ) {
+						print " SKIPPING ( found old test run )";
+					}
 					$_[KERNEL]->yield( 'bench_xsqueue' );
 					return;
 				} else {
@@ -576,7 +576,7 @@ sub wrapup_test : State {
 
 	# store the data
 	my $file = generateTestfile( $_[HEAP] );
-	if ( open( my $fh, '>', "results/$file" ) ) {
+	if ( open( my $fh, '>', File::Spec->catfile( 'results', $file ) ) ) {
 		print $fh "STARTTIME: " . $_[HEAP]->{'current_starttime'} . " -> TIMES " . join( " ", @{ $_[HEAP]->{'current_starttimes'} } ) . "\n";
 		print $fh "$file\n";
 		print $fh $_[HEAP]->{'current_data'} . "\n";
@@ -586,7 +586,7 @@ sub wrapup_test : State {
 		print $fh "ENDTIME: " . $_[HEAP]->{'current_endtime'} . " -> TIMES " . join( " ", @{ $_[HEAP]->{'current_endtimes'} } ) . "\n";
 		close( $fh ) or die $!;
 	} else {
-		print "\n[BENCHMARKER] Unable to open results/$file for writing -> $!\n";
+		print "\n[BENCHMARKER] Unable to open '$file' for writing -> $!\n";
 	}
 
 	# Send the data to the Analyzer to process
@@ -685,7 +685,7 @@ sub analyze_output : State {
 			# what should we analyze?
 			my $cpuinfo = $1;
 
-			# FIXME if this is on a multiproc system, we will overwrite the data per processor ( harmless? )
+			# if this is on a multiproc system, we will overwrite the data per processor ( harmless... )
 
 			# cpu MHz		: 1201.000
 			if ( $cpuinfo =~ /^cpu\s+MHz\s+:\s+(.+)$/ ) {
@@ -770,8 +770,7 @@ sub analyze_output : State {
 	}
 
 	# Dump the data struct we have to the file.yml
-	my $yaml_file = 'results/' . delete $test->{'test'};
-	$yaml_file .= '.yml';
+	my $yaml_file = File::Spec->catfile( 'results', ( delete $test->{'test'} ) . '.yml' );
 	my $ret = open( my $fh, '>', $yaml_file );
 	if ( defined $ret ) {
 		print $fh Dump( $test );
@@ -819,18 +818,21 @@ sub analyze_output : State {
 
 1;
 __END__
+
+=for stopwords AnnoCPAN CPAN Caputo EV Eventloop Gtk HTTP Kqueue MYFH poe Prima RT SQLite STDIN SocketFactory TODO Tapout Wx XS YAML autoprobing backend benchmarker csv db dngor er freshstart hardcode litetests noasserts noxsqueue poedists pong svn untarred yml
+
 =head1 NAME
 
 POE::Devel::Benchmarker - Benchmarking POE's performance ( acts more like a smoker )
 
 =head1 SYNOPSIS
 
-	apoc@apoc-x300:~$ cd poe-benchmarker
-	apoc@apoc-x300:~/poe-benchmarker$ perl -MPOE::Devel::Benchmarker -e 'benchmark()'
+	use POE::Devel::Benchmarker;
+	benchmark();
 
 =head1 ABSTRACT
 
-This package of tools is designed to benchmark POE's performace across different
+This package of tools is designed to benchmark POE's performance across different
 configurations. The current "tests" are:
 
 =over 4
@@ -1132,6 +1134,10 @@ L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=POE-Devel-Benchmarker>
 
 L<http://search.cpan.org/dist/POE-Devel-Benchmarker>
 
+=item * CPAN Testing Service
+
+L<http://cpants.perl.org/dist/overview/POE-Devel-Benchmarker>
+
 =back
 
 =head2 Bugs
@@ -1148,7 +1154,7 @@ BIG THANKS goes to Rocco Caputo E<lt>rcaputo@cpan.orgE<gt> for the first benchma
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2009 by Apocalypse
+Copyright 2010 by Apocalypse
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

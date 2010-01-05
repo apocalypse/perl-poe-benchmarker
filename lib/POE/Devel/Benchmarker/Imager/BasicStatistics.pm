@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.05';
+$VERSION = '0.06';
 
 # the GD stuff
 use GD::Graph::lines;
@@ -290,14 +290,17 @@ sub make_gdgraph {
 
 1;
 __END__
+
+=for stopwords backend
+
 =head1 NAME
 
 POE::Devel::Benchmarker::Imager::BasicStatistics - Plugin to generates basic statistics graphs
 
 =head1 SYNOPSIS
 
-	apoc@apoc-x300:~$ cd poe-benchmarker
-	apoc@apoc-x300:~/poe-benchmarker$ perl -MPOE::Devel::Benchmarker::Imager -e 'imager( { type => "BasicStatistics" } )'
+	use POE::Devel::Benchmarker::Imager;
+	imager( { type => 'BasicStatistics' } );
 
 =head1 ABSTRACT
 
@@ -308,6 +311,9 @@ This plugin for Imager generates some kinds of graphs from the benchmark tests.
 This package generates some basic graphs from the statistics output. Since the POE::Loop::* modules really are responsible
 for the backend logic of POE, it makes sense to graph all related metrics of a single loop across POE versions to see if
 it performs differently.
+
+	apoc@apoc-x300:~$ cd poe-benchmarker
+	apoc@apoc-x300:~/poe-benchmarker$ perl -MPOE::Devel::Benchmarker::Imager -e 'imager( { type => "BasicStatistics" } )'
 
 This will generate some types of graphs:
 
@@ -333,13 +339,11 @@ file: BasicStatistics/Options_$loop_$metric_$lite.png
 
 =back
 
-=head1 EXPORT
-
-Nothing.
-
 =head1 SEE ALSO
 
 L<POE::Devel::Benchmarker>
+
+L<POE::Devel::Benchmarker::Imager>
 
 =head1 AUTHOR
 
@@ -347,7 +351,7 @@ Apocalypse E<lt>apocal@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2009 by Apocalypse
+Copyright 2010 by Apocalypse
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

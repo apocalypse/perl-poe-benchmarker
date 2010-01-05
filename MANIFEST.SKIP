@@ -1,13 +1,12 @@
-^.includepath
-^.project
-^.settings/
+\.includepath$
+\.project$
+\.settings/
 
 # Avoid version control files.
 \B\.svn\b
 \B\.git\b
 
 # Avoid Makemaker generated and utility files.
-\bMANIFEST\.SKIP
 \bMakefile$
 \bblib/
 \bMakeMaker-\d

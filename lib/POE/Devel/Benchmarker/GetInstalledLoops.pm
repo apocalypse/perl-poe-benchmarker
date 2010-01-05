@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.05';
+$VERSION = '0.06';
 
 # auto-export the only sub we have
 use base qw( Exporter );
@@ -178,7 +178,7 @@ POE::Devel::Benchmarker::GetInstalledLoops - Automatically detects the installed
 
 =head1 SYNOPSIS
 
-	Don't use this module directly. Please use POE::Devel::Benchmarker.
+	die "Don't use this module directly. Please use POE::Devel::Benchmarker instead.";
 
 =head1 ABSTRACT
 
@@ -198,7 +198,7 @@ Apocalypse E<lt>apocal@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2009 by Apocalypse
+Copyright 2010 by Apocalypse
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

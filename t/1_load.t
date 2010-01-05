@@ -1,15 +1,23 @@
 #!/usr/bin/perl
+use strict; use warnings;
 
-# Import the stuff
-# XXX no idea why this is broken for this particular dist!
-#use Test::UseAllModules;
-#BEGIN { all_uses_ok(); }
+my $numtests;
+BEGIN {
+	$numtests = 7;
 
-use Test::More tests => 7;
-use_ok( 'POE::Devel::Benchmarker' );
+	eval "use Test::NoWarnings";
+	if ( ! $@ ) {
+		# increment by one
+		$numtests++;
+	}
+}
+
+use Test::More tests => $numtests;
+
 use_ok( 'POE::Devel::Benchmarker::SubProcess' );
 use_ok( 'POE::Devel::Benchmarker::GetInstalledLoops' );
 use_ok( 'POE::Devel::Benchmarker::GetPOEdists' );
 use_ok( 'POE::Devel::Benchmarker::Utils' );
-use_ok( 'POE::Devel::Benchmarker::Imager' );
 use_ok( 'POE::Devel::Benchmarker::Imager::BasicStatistics' );
+use_ok( 'POE::Devel::Benchmarker::Imager' );
+use_ok( 'POE::Devel::Benchmarker' );

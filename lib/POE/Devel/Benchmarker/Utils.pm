@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.05';
+$VERSION = '0.06';
 
 # set ourself up for exporting
 use base qw( Exporter );
@@ -157,7 +157,8 @@ POE::Devel::Benchmarker::Utils - Various utility routines for POE::Devel::Benchm
 
 =head1 SYNOPSIS
 
-	perl -MPOE::Devel::Benchmarker::Utils -e 'print poeloop2load( "IO_Poll" )'
+	use POE::Devel::Benchmarker::Utils qw( poeloop2load );
+	print poeloop2load( "IO_Poll" );
 
 =head1 ABSTRACT
 
@@ -215,6 +216,12 @@ Returns a hashref of data from parsing 2 consecutive times() structures in a str
 		"s_user" => "0.1"	# start user time ( optional )
 	}
 
+=item generateTestfile()
+
+Internal method, accepts the POE HEAP as an argument and returns the filename of the test.
+
+	my $file = generateTestfile( $_[HEAP] );
+
 =back
 
 =head1 SEE ALSO
@@ -227,7 +234,7 @@ Apocalypse E<lt>apocal@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2009 by Apocalypse
+Copyright 2010 by Apocalypse
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

@@ -4,7 +4,7 @@ use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
-$VERSION = '0.05';
+$VERSION = '0.06';
 
 # auto-export the only sub we have
 use base qw( Exporter );
@@ -64,7 +64,7 @@ sub getPOEdists {
 		# skip IMG stuff
 		if ( $link->[0] eq 'a' and $link->[1] eq 'href' ) {
 			# get the actual POE dists!
-			if ( $link->[2] =~ /^POE\-\d/ and $link->[2] =~ /\.tar\.gz$/ ) {
+			if ( $link->[2] =~ /^POE\-\d.+\.tar\.gz$/ ) {
 				# download the tarball!
 				print "Mirroring $link->[2] via LWP\n" if $debug;
 				my $mirror_result = $ua->mirror( $url . $link->[2], $link->[2] );
@@ -93,14 +93,17 @@ sub getPOEdists {
 
 1;
 __END__
+
+=for stopwords BACKPAN LWP getPOEdists
+
 =head1 NAME
 
 POE::Devel::Benchmarker::GetPOEdists - Automatically download all POE tarballs
 
 =head1 SYNOPSIS
 
-	apoc@apoc-x300:~$ cd poe-benchmarker
-	apoc@apoc-x300:~/poe-benchmarker$ perl -MPOE::Devel::Benchmarker::GetPOEdists -e 'getPOEdists()'
+	use POE::Devel::Benchmarker::GetPOEdists;
+	getPOEdists();
 
 =head1 ABSTRACT
 
@@ -113,6 +116,9 @@ This uses LWP + HTML::LinkExtor to retrieve POE tarballs from BACKPAN.
 The tarballs are automatically downloaded to the current directory. Then, we use Archive::Tar to extract them all!
 
 NOTE: we use LWP's useful mirror() sub which doesn't re-download files if they already exist!
+
+	apoc@apoc-x300:~$ cd poe-benchmarker
+	apoc@apoc-x300:~/poe-benchmarker$ perl -MPOE::Devel::Benchmarker::GetPOEdists -e 'getPOEdists()'
 
 =head2 getPOEdists
 
@@ -135,7 +141,7 @@ Apocalypse E<lt>apocal@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2009 by Apocalypse
+Copyright 2010 by Apocalypse
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
