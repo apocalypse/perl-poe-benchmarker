@@ -1,0 +1,40 @@
+To install POE + all loops on ubuntu 9.10:
+
+1. cpanp i XML::Writer # needed for stupid Gtk
+
+2. apt-get install libgtk2.0-dev libglib2.0-dev libpango1.0-dev tk tk-dev libaudiofile-dev libesd0-dev libgnomeui-dev
+
+3. install older gtk1.2 package from ubuntu 9.04
+	# download all debs into one dir, then do this "dpkg --force-all -i *.deb"
+	# The problem is that libgnome-dev deps on libgnome32 which deps on gnome-libs-data which deps on 100 old packages...
+
+	http://packages.ubuntu.com/jaunty/libdevel/libglib1.2-dev
+	http://packages.ubuntu.com/jaunty/libdevel/libgtk1.2-dev
+	http://packages.ubuntu.com/jaunty/libs/libgtk1.2
+	http://packages.ubuntu.com/jaunty/imlib-base
+	http://packages.ubuntu.com/jaunty/imlib11
+	http://packages.ubuntu.com/jaunty/libdevel/imlib11-dev
+	http://packages.ubuntu.com/jaunty/libgnome-dev
+	http://packages.ubuntu.com/jaunty/gdk-imlib11
+	http://packages.ubuntu.com/jaunty/gdk-imlib11-dev
+	http://packages.ubuntu.com/jaunty/libart2
+	http://packages.ubuntu.com/jaunty/libart-dev
+	http://packages.ubuntu.com/jaunty/libgtkxmhtml1
+	http://packages.ubuntu.com/jaunty/libgtkxmhtml-dev
+	http://packages.ubuntu.com/jaunty/libgdk-pixbuf-dev
+	http://packages.ubuntu.com/jaunty/gnome-bin
+	http://packages.ubuntu.com/jaunty/gnome-libs-data
+	http://packages.ubuntu.com/jaunty/libgnome32
+	http://packages.ubuntu.com/jaunty/libzvt-dev
+	http://packages.ubuntu.com/jaunty/libzvt2
+
+3. cpanp i POE::Loop::EV POE::Loop::Prima POE::Loop::Tk POE::Loop::Glib POE::Loop::Event POE::Loop::Wx
+
+4. cpanp z Gtk
+	# Gtk for some reason is *hard* to compile!
+	# in my case, I needed to perl Makefile.PL && make
+	# and type 'make' like 50 times before it compiled everything!!!
+	# finally, install it then do "cpanp i POE::Loop::Gtk"
+
+4. apt-get remove libgnome32 gnome-bin gnome-libs-data libgnome-dev
+	# this is because those stupid packages will "hang" the system with unmet dependency error...

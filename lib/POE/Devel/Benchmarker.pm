@@ -401,9 +401,7 @@ sub bench_checkprevioustest : State {
 				};
 				if ( $isvalid ) {
 					# yay, this test is A-OK!
-					if ( ! $_[HEAP]->{'quiet_mode'} ) {
-						print " SKIPPING ( found old test run )";
-					}
+					$_[HEAP]->{'SKIPPED_TESTS'}++;
 					$_[KERNEL]->yield( 'bench_xsqueue' );
 					return;
 				} else {
@@ -430,6 +428,11 @@ sub bench_checkprevioustest : State {
 
 # actually runs the subprocess
 sub create_subprocess : State {
+	if ( exists $_[HEAP]->{'SKIPPED_TESTS'} ) {
+		print "\n Skipping $_[HEAP]->{'SKIPPED_TESTS'} old test runs...";
+		delete $_[HEAP]->{'SKIPPED_TESTS'};
+	}
+
 	# Okay, start testing this specific combo!
 	if ( ! $_[HEAP]->{'quiet_mode'} ) {
 		print "\n Testing " . generateTestfile( $_[HEAP] ) . "...";
@@ -792,7 +795,7 @@ sub analyze_output : State {
 		# The loop we loaded should match what we wanted!
 		if ( exists $test->{'poe'}->{'modules'} ) {
 			if ( ! exists $test->{'poe'}->{'modules'}->{ $test->{'poe'}->{'loop'} } ) {
-				# gaah special-case for IO_Poll
+				# gaah special-case for IO_Poll ( POE 0.21 to POE 0.29 introduced POE::Loop::Poll which later became POE::Loop::IO_Poll )
 				if ( $test->{'poe'}->{'loop'} eq 'POE::Loop::IO_Poll' and exists $test->{'poe'}->{'modules'}->{'POE::Loop::Poll'} ) {
 					# ah, ignore this
 				} else {

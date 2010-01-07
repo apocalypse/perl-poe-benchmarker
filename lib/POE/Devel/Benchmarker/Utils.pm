@@ -92,8 +92,8 @@ sub loop2realversion {
 	} elsif ( $eventloop eq 'Wx' ) {
 		return $Wx::VERSION;
 	} elsif ( $eventloop eq 'Kqueue' ) {
-		# FIXME how do I do this?
-		return;
+		# POE::Loop::Kqueue doesn't rely on an external module...
+		return $POE::Loop::Kqueue::VERSION;
 	} elsif ( $eventloop eq 'Select' ) {
 		return 'BUILTIN';
 
@@ -143,10 +143,8 @@ sub beautify_times {
 
 # returns a list of "known" POE loops
 sub knownloops {
-	# FIXME we remove Wx because I suck.
-	# FIXME I have no idea how to load/unload Kqueue...
 	# FIXME figure out the XS stuff! XSPoll XSEPoll
-	return [ qw( Event_Lib EV Glib Prima Gtk Tk Select IO_Poll ) ];
+	return [ sort qw( Event Event_Lib EV Glib Prima Gtk Tk Select IO_Poll Wx Kqueue ) ];
 }
 
 1;

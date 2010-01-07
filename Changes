@@ -6,6 +6,8 @@ Revision history for Perl extension POE::Devel::Benchmarker
 	Cleanup Build.PL and remove a lot of tests in favor of Test::Apocalypse
 	Fixed a bug where the Benchmarker wouldn't recognize old test runs and skip them
 	Add File::Spec so we are more portable, yay!
+	POE::Loop::Event wasn't benchmarked - added to the list
+	Wx/POE::Loop::Wx works now - added to the list
 
 * 0.05
 
