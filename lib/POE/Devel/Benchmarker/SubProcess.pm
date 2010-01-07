@@ -234,7 +234,8 @@ sub bench_startup {
 	my @start_times = times();
 	my $start = time();
 	for (my $i = 0; $i < $metrics{'startups'}; $i++) {
-		# We do not care about assert/xsqueue for startups, so we don't include them here...
+		# We do not care about xsqueue for startups, so we don't include them here...
+		# TODO fix the "strange" loop loader - i.e. Kqueue
 
 		# finally, fire it up!
 		CORE::system(

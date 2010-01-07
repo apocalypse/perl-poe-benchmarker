@@ -8,6 +8,7 @@ Revision history for Perl extension POE::Devel::Benchmarker
 	Add File::Spec so we are more portable, yay!
 	POE::Loop::Event wasn't benchmarked - added to the list
 	Wx/POE::Loop::Wx works now - added to the list
+	Finally fired up a FreeBSD VM and confirmed that POE::Loop::Kqueue works - added to the list
 
 * 0.05
 

@@ -22,9 +22,17 @@ sub getPOEloops {
 	my $quiet_mode = shift;
 	my $forceloops = shift;
 
+	# load our known list of loops
+	# known impossible loops:
+	#	XS::EPoll ( must be POE > 1.003 and weird way of loading )
+	#	XS::Poll ( must be POE > 1.003 and weird way of loading )
+	if ( ! defined $forceloops ) {
+		$forceloops = knownloops();
+	}
+
 	# create our session!
 	POE::Session->create(
-		POE::Devel::Benchmarker::GetInstalledLoops->inline_states(),
+		__PACKAGE__->inline_states(),
 		'heap'	=>	{
 			'quiet_mode'	=> $quiet_mode,
 			'loops'		=> $forceloops,
@@ -36,14 +44,6 @@ sub getPOEloops {
 sub _start : State {
 	# set our alias
 	$_[KERNEL]->alias_set( 'Benchmarker::GetInstalledLoops' );
-
-	# load our known list of loops
-	# known impossible loops:
-	#	XS::EPoll ( must be POE > 1.003 and weird way of loading )
-	#	XS::Poll ( must be POE > 1.003 and weird way of loading )
-	if ( ! defined $_[HEAP]->{'loops'} ) {
-		$_[HEAP]->{'loops'} = knownloops();
-	}
 
 	# First of all, we need to find out what loop libraries are installed
 	$_[HEAP]->{'found_loops'} = [];
