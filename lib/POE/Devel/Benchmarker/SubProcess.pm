@@ -10,22 +10,13 @@ $VERSION = '0.06';
 BEGIN {
 	# should we enable assertions?
 	if ( defined $ARGV[1] and $ARGV[1] ) {
-		## no critic
+		## no critic ( ProhibitStringyEval )
 		eval "sub POE::Kernel::ASSERT_DEFAULT () { 1 }";
 		eval "sub POE::Session::ASSERT_STATES () { 1 }";
-		## use critic
 	}
 
 	# Compile a list of modules to hide
 	my $hide = '';
-	if ( defined $ARGV[0] ) {
-		if ( $ARGV[0] ne 'XSPoll' ) {
-			$hide .= ' POE/XS/Loop/Poll.pm';
-		}
-		if ( $ARGV[0] ne 'XSEPoll' ) {
-			$hide .= ' POE/XS/Loop/EPoll.pm';
-		}
-	}
 
 	# should we "hide" XS::Queue::Array?
 	if ( defined $ARGV[3] and $ARGV[3] ) {
@@ -33,10 +24,8 @@ BEGIN {
 	}
 
 	# actually hide the modules!
-	{
-		## no critic
-		eval "use Devel::Hide qw( $hide )";
-		## use critic
+	if ( length $hide ) {
+		eval "use Devel::Hide qw( $hide )";	## no critic ( ProhibitStringyEval )
 	}
 }
 
@@ -51,6 +40,9 @@ use POE::Wheel::ReadWrite;
 use POE::Filter::Line;
 use POE::Driver::SysRW;
 
+# to silence Perl::Critic - # Three-argument form of open used at line 541, column 3.  Three-argument open is not available until perl 5.6.  (Severity: 5)
+use 5.008;
+
 # autoflush, please!
 use IO::Handle;
 STDOUT->autoflush( 1 );
@@ -62,7 +54,7 @@ use Socket qw( INADDR_ANY sockaddr_in );
 use version;
 
 # load our utility stuff
-use POE::Devel::Benchmarker::Utils qw( loop2realversion poeloop2load currentMetrics );
+use POE::Devel::Benchmarker::Utils qw( loop2realversion poeloop2load poeloop2dist currentMetrics );
 
 # init our global variables ( bad, haha )
 my( $eventloop, $asserts, $lite_tests, $pocosession );
@@ -121,9 +113,19 @@ sub process_assertions {
 	$asserts = $ARGV[1];
 
 	if ( defined $asserts and $asserts ) {
-		print "Using FULL Assertions!\n";
+		# verify POE enabled assertions
+		if ( POE::Kernel::ASSERT_DEFAULT() ) {
+			print "Using FULL Assertions!\n";
+		} else {
+			die "Using FULL Assertions but POE didn't enable it!";
+		}
 	} else {
-		print "Using NO Assertions!\n";
+		# verify POE disabled assertions
+		if ( ! POE::Kernel::ASSERT_DEFAULT() ) {
+			print "Using NO Assertions!\n";
+		} else {
+			die "Using NO Assertions but POE enabled it!";
+		}
 	}
 
 	return;
@@ -134,7 +136,7 @@ sub process_testmode {
 	$lite_tests = $ARGV[2];
 
 	# setup most of the metrics
-	$metrics{'startups'}		=     10;
+	$metrics{'startups'} = 10;
 
 	# event tests
 	foreach my $s ( qw( posts dispatches calls single_posts ) ) {
@@ -228,15 +230,23 @@ sub run_benchmarks {
 }
 
 sub bench_startup {
-	# Add the eventloop?
-	my $looploader = poeloop2load( $eventloop );
+	# We do not care about xsqueue for startups, so we don't include them here...
+
+	# POE in 1.001 added POE_EVENT_LOOP env var, yay!
+	my $looploader;
+	if ( $POE::VERSION >= 1.001 ) {
+		$looploader = poeloop2dist( $eventloop );
+	} else {
+		# Add the eventloop?
+		$looploader = poeloop2load( $eventloop );
+	}
+
+	local $ENV{POE_EVENT_LOOP} = $looploader if defined $looploader and $looploader =~ /^POE::/;
+	undef $looploader if defined $looploader and $looploader =~ /^POE::/;
 
 	my @start_times = times();
 	my $start = time();
 	for (my $i = 0; $i < $metrics{'startups'}; $i++) {
-		# We do not care about xsqueue for startups, so we don't include them here...
-		# TODO fix the "strange" loop loader - i.e. Kqueue
-
 		# finally, fire it up!
 		CORE::system(
 			$^X,
@@ -247,6 +257,8 @@ sub bench_startup {
 			$asserts ? 'sub POE::Kernel::ASSERT_DEFAULT () { 1 } sub POE::Session::ASSERT_STATES () { 1 } use POE; 1;' : 'use POE; 1;',
 		);
 	}
+
+	# process the result
 	my @end_times = times();
 	my $elapsed = time() - $start;
 	printf( "\n\n% 9d %-20.20s in % 9.3f seconds (% 11.3f per second)\n", $metrics{'startups'}, 'startups', $elapsed, $metrics{'startups'}/$elapsed );

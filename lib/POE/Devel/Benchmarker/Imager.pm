@@ -14,6 +14,9 @@ our @EXPORT = qw( imager );
 use YAML::Tiny;
 use File::Spec;
 
+# to silence Perl::Critic - # Three-argument form of open used at line 541, column 3.  Three-argument open is not available until perl 5.6.  (Severity: 5)
+use 5.008;
+
 # load our plugins!
 use Module::Pluggable search_path => [ __PACKAGE__ ];
 
@@ -26,7 +29,7 @@ use POE::Devel::Benchmarker::Utils qw( currentTestVersion );
 # generate some accessors
 use base qw( Class::Accessor::Fast );
 __PACKAGE__->mk_ro_accessors( qw( poe_versions poe_versions_sorted poe_loops data
-	noxsqueue noasserts litetests quiet
+	noxsqueue noasserts litetests quiet type
 ) );
 
 # autoflush, please!
@@ -83,6 +86,8 @@ sub init_options {
 
 	# process our options
 	if ( defined $options and ref $options and ref( $options ) eq 'HASH' ) {
+		## no critic ( ProhibitAccessOfPrivateData )
+
 		# process quiet mode
 		if ( exists $options->{'quiet'} ) {
 			if ( $options->{'quiet'} ) {
@@ -119,7 +124,39 @@ sub init_options {
 			}
 		}
 
-		# FIXME process the plugins to load -> "types"
+		# process the plugins to load -> "type"
+		if ( exists $options->{'type'} ) {
+			my $forcetypes;
+			if ( ! ref $options->{'type'} ) {
+				# split it via CSV
+				$forcetypes = [ split( /,/, $options->{'type'} ) ];
+				foreach ( @$forcetypes ) {
+					$_ =~ s/^\s+//; $_ =~ s/\s+$//;
+				}
+			} else {
+				# treat it as array
+				$forcetypes = $options->{'type'};
+			}
+
+			# check for !type modules
+			my @notype;
+			foreach my $l ( @$forcetypes ) {
+				if ( $l =~ /^\!/ ) {
+					push( @notype, __PACKAGE__ . '::' . substr( $l, 1 ) );
+				}
+			}
+			if ( scalar @notype ) {
+				# replace the forcetype with ALL known, then subtract notype from it
+				my %bad;
+				@bad{@notype} = () x @notype;
+				@$forcetypes = grep { !exists $bad{$_} } $self->plugins;
+			} else {
+				# Add our package to the type
+				@$forcetypes = map { __PACKAGE__ . '::' . $_ } @$forcetypes;
+			}
+
+			$self->{'type'} = $forcetypes;
+		}
 
 		# FIXME process the versions to load
 
@@ -196,6 +233,8 @@ sub loadtests {
 # loads the yaml of a specific file
 sub load_yaml {
 	my ( $self, $file, $ver, $loop, $lite, $assert, $xsqueue ) = @_;
+
+	## no critic ( ProhibitAccessOfPrivateData )
 
 	my $yaml = YAML::Tiny->read( File::Spec->catfile( 'results', $file ) );
 	if ( ! defined $yaml ) {
@@ -297,7 +336,7 @@ sub process_data {
 
 	# sanitize the versions in an ordered loop
 	$self->{'poe_versions_sorted'} = [ map { $_->stringify }
-		sort { $a <=> $b }
+		sort { $b <=> $a }
 		map { version->new($_) } keys %{ $self->poe_versions }
 	];
 
@@ -313,10 +352,17 @@ sub generate_images {
 
 	# load our plugins and let them have fun :)
 	foreach my $plugin ( $self->plugins ) {
+		# Do we want this plugin?
+		if ( exists $self->{'type'} and ! grep { $_ eq $plugin } @{ $self->{'type'} } ) {
+			if ( ! $self->quiet ) {
+				print "[IMAGER] Skipping plugin $plugin\n";
+			}
+
+			next;
+		}
+
 		# actually load it!
-		## no critic
-		eval "require $plugin";
-		## use critic
+		eval "require $plugin";		## no critic ( ProhibitStringyEval )
 		if ( $@ ) {
 			if ( ! $self->quiet ) {
 				print "[IMAGER] Unable to load plugin $plugin -> $@\n";
@@ -326,14 +372,12 @@ sub generate_images {
 
 		# sanity checks
 		if ( $plugin->can( 'new' ) and $plugin->can( 'imager' ) ) {
-			# FIXME did we want this plugin?
-
 			# create the plugin's home dir
 			my $homedir = $plugin;
 			if ( $homedir =~ /\:\:(\w+)$/ ) {
 				$homedir = $1;
 			} else {
-				die "barf";
+				die "Unable to figure out plugin's homedir - $plugin";
 			}
 			$homedir = File::Spec->catdir( 'images', $homedir );
 			if ( ! -d $homedir ) {
@@ -429,11 +473,22 @@ This will tell the Imager to not consider those tests for the output
 
 default: true
 
+=item type => csv list or array
+
+This will tell the Imager to only process a specific plugin. Takes the same argument format as the main Benchmarker's poe + loop options.
+
+There is some "magic" here where you can put a negative sign in front of a plugin and we will NOT run that.
+
+	imager( { type => 'BasicStatistics' } );				# runs only the BasicStatistics plugin
+	imager( { type => [ qw( BasicStatistics BenchmarkOutput ) ] } );	# runs those 2 plugins
+	imager( { type => '-BasicStatistics' } );				# runs ALL plugins except BasicStatistics
+
 =back
 
 =head1 PLUGIN INTERFACE
 
-For now, this is undocumented. Please look at BasicStatistics for the general concept on how it interacts with this module.
+For now, this is undocumented. Please look at L<POE::Devel::Benchmarker::Imager::BasicStatistics> for the general
+concept on how it interacts with this module.
 
 =head1 EXPORT
 

@@ -23,7 +23,7 @@ my $build = Module::Build->new(
 
 	'requires'		=> {
 		# POE Stuff
-		'POE'				=> 0,
+		'POE'				=> '1.001',	# for the POE_EVENT_LOOP env var which is so handy!
 		'POE::Session::AttributeBased'	=> 0,
 
 		# misc perl stuff
@@ -46,6 +46,7 @@ my $build = Module::Build->new(
 		'GD::Graph::colour'		=> 0,
 		'Class::Accessor::Fast'		=> 0,
 		'Module::Pluggable'		=> 0,
+		'Text::Table'			=> 0,
 
 		# Test stuff
 		'Test::More'			=> 0,
@@ -64,25 +65,16 @@ my $build = Module::Build->new(
 		'POE::Loop::Gtk'		=> 0,
 		'POE::Loop::Wx'			=> 0,
 		'POE::Loop::Kqueue'		=> 0,
+		'POE::Loop::Tk'			=> 0,
+		'POE::XS::Loop::Poll'		=> 0,
+		'POE::XS::Loop::EPoll'		=> 0,
 
 		# included in POE ( listed here for completeness )
-		#'POE::Loop::Tk'		=> 0,
 		#'POE::Loop::Select'		=> 0,
 		#'POE::Loop::IO_Poll'		=> 0,
 
-		# the loops' dependencies
-		'Event'				=> 0,
-		'Event::Lib'			=> 0,
-		'EV'				=> 0,
-		'Glib'				=> 0,
-		'Prima'				=> 0,
-		'Wx'				=> 0,
-		'Tk'				=> 0,
-
-		# the XS stuff
+		# our XS queue
 		'POE::XS::Queue::Array'		=> 0,
-		'POE::XS::Loop::Poll'		=> 0,
-		'POE::XS::Loop::EPoll'		=> 0,
 	},
 
 	# include the standard stuff in META.yml

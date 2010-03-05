@@ -61,6 +61,8 @@ sub getPOEdists {
 
 	# Download every one!
 	foreach my $link ( $p->links ) {
+		## no critic ( ProhibitAccessOfPrivateData )
+
 		# skip IMG stuff
 		if ( $link->[0] eq 'a' and $link->[1] eq 'href' ) {
 			# get the actual POE dists!

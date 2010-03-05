@@ -15,7 +15,7 @@ use POE qw( Session Filter::Line Wheel::Run );
 use base 'POE::Session::AttributeBased';
 
 # Get the utils
-use POE::Devel::Benchmarker::Utils qw ( knownloops );
+use POE::Devel::Benchmarker::Utils qw ( knownloops poeloop2dist );
 
 # analyzes the installed perl directory for available loops
 sub getPOEloops {
@@ -23,9 +23,6 @@ sub getPOEloops {
 	my $forceloops = shift;
 
 	# load our known list of loops
-	# known impossible loops:
-	#	XS::EPoll ( must be POE > 1.003 and weird way of loading )
-	#	XS::Poll ( must be POE > 1.003 and weird way of loading )
 	if ( ! defined $forceloops ) {
 		$forceloops = knownloops();
 	}
@@ -75,7 +72,7 @@ sub find_loops : State {
 		return;
 	} else {
 		if ( ! $_[HEAP]->{'quiet_mode'} ) {
-			print "[LOOPSEARCH] Trying to find if POE::Loop::" . $_[HEAP]->{'current_loop'} . " is installed...\n";
+			print "[LOOPSEARCH] Trying to find if " . poeloop2dist( $_[HEAP]->{'current_loop'} ) . " is installed...\n";
 		}
 
 		# set the flag
@@ -83,13 +80,16 @@ sub find_loops : State {
 	}
 
 	# Okay, create the wheel::run to handle this
+	local $ENV{POE_EVENT_LOOP} = poeloop2dist( $_[HEAP]->{'current_loop'} );
+
+	# ARGH, I tried to do: $^X -MPOE -e POE::Kernel->run but the shell blew up!
 	$_[HEAP]->{'WHEEL'} = POE::Wheel::Run->new(
-		'Program'	=>	$^X,
-		'ProgramArgs'	=>	[	'-MPOE',
-						'-MPOE::Loop::' . $_[HEAP]->{'current_loop'},
-						'-e',
-						'1',
-					],
+		'Program'	=> $^X,
+		'ProgramArgs'	=> [
+			'-MPOE::Devel::Benchmarker::GetInstalledLoops::SubProcess',
+			'-e',
+			'1',
+		],
 
 		# Kill off existing FD's
 		'CloseOnCall'	=>	1,
@@ -115,7 +115,17 @@ sub find_loops : State {
 		} else {
 			$_[KERNEL]->sig( 'CHLD', 'Got_CHLD' );
 		}
+
+		# We need to time it out because EV will hang...
+		$_[KERNEL]->delay( 'timeout' => 5 );
 	}
+	return;
+}
+
+sub timeout : State {
+#	print "Probing timed out\n";
+
+	$_[HEAP]->{'WHEEL'}->kill;
 	return;
 }
 
@@ -128,6 +138,7 @@ sub Got_CHLD : State {
 # Handles child STDERR output
 sub Got_STDERR : State {
 	my $input = $_[ARG0];
+#	print "STDERR: $input\n";
 
 	# since we got an error, must be a failure
 	$_[HEAP]->{'test_failure'} = 1;
@@ -138,6 +149,7 @@ sub Got_STDERR : State {
 # Handles child STDOUT output
 sub Got_STDOUT : State {
 	my $input = $_[ARG0];
+#	print "STDOUT: $input\n";
 
 	return;
 }
@@ -159,6 +171,7 @@ sub Got_ERROR : State {
 sub Got_CLOSED : State {
 	# Get rid of the wheel
 	undef $_[HEAP]->{'WHEEL'};
+	$_[KERNEL]->delay( 'timeout' );	# disable delay
 
 	# Did we pass this test or not?
 	if ( ! $_[HEAP]->{'test_failure'} ) {

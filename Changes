@@ -7,8 +7,13 @@ Revision history for Perl extension POE::Devel::Benchmarker
 	Fixed a bug where the Benchmarker wouldn't recognize old test runs and skip them
 	Add File::Spec so we are more portable, yay!
 	POE::Loop::Event wasn't benchmarked - added to the list
-	Wx/POE::Loop::Wx works now - added to the list
+	Probing for Wx enabled but it still doesn't work :(
 	Finally fired up a FreeBSD VM and confirmed that POE::Loop::Kqueue works - added to the list
+	Tweaked the loop loader routines to take advantage of the POE_EVENT_LOOP env var
+	Finally enabled the XS loops, yay!
+	Bumped YAML output version to ensure sanity
+	Added the BenchmarkOutput plugin to the Imager for output similar to Benchmark.pm
+	Added the type option to imager()
 
 * 0.05
 

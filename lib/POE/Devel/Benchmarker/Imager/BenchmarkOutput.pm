@@ -1,18 +1,15 @@
 # Declare our package
-package POE::Devel::Benchmarker::Imager::BasicStatistics;
+package POE::Devel::Benchmarker::Imager::BenchmarkOutput;
 use strict; use warnings;
 
 # Initialize our version
 use vars qw( $VERSION );
 $VERSION = '0.06';
 
-# the GD stuff
-use GD::Graph::lines;
-use GD::Graph::colour qw( :lists );
-use File::Spec;
-
 # import some stuff
-use POE::Devel::Benchmarker::Utils qw( currentMetrics );
+use File::Spec;
+use POE::Devel::Benchmarker::Utils qw( currentMetrics metricSorting );
+use Text::Table;
 
 # to silence Perl::Critic - # Three-argument form of open used at line 541, column 3.  Three-argument open is not available until perl 5.6.  (Severity: 5)
 use 5.008;
@@ -24,7 +21,7 @@ sub new {
 
 	# instantitate ourself
 	my $self = {
-		'opts' => $opts,
+		'opts'	=> $opts,
 	};
 	return bless $self, $class;
 }
@@ -38,10 +35,10 @@ sub imager {
 	$self->generate_loopwars;
 
 	# generate the single loop performance
-	$self->generate_loopperf;
+	#$self->generate_loopperf;
 
 	# generate the loop assert/xsqueue ( 4 lines ) per metric
-	$self->generate_loopoptions;
+	#$self->generate_loopoptions;
 
 	return;
 }
@@ -51,7 +48,7 @@ sub generate_loopoptions {
 	my $self = shift;
 
 	if ( ! $self->{'imager'}->quiet ) {
-		print "[BasicStatistics] Generating the Loop-Options graphs...\n";
+		print "[BenchmarkOutput] Generating the Loop-Options tables...\n";
 	}
 
 	# go through all the loops we want
@@ -84,6 +81,11 @@ sub generate_loopoptions {
 				}
 			}
 
+			use Data::Dumper;
+			print Dumper( \%data );
+			exit;
+
+
 			# it's possible for us to do runs without assert/xsqueue
 			if ( scalar keys %data > 0 ) {
 				# transform %data into something GD likes
@@ -109,7 +111,7 @@ sub generate_loopperf {
 	my $self = shift;
 
 	if ( ! $self->{'imager'}->quiet ) {
-		print "[BasicStatistics] Generating the Loop-Performance graphs...\n";
+		print "[BenchmarkOutput] Generating the Loop-Performance tables...\n";
 	}
 
 	# go through all the loops we want
@@ -140,18 +142,16 @@ sub generate_loopperf {
 					}
 				}
 
-				# transform %data into something GD likes
-				my @data_for_gd;
-				foreach my $m ( sort keys %data ) {
-					push( @data_for_gd, $data{ $m } );
-				}
+				use Data::Dumper;
+				print Dumper( $loop, $self->{'imager'}->poe_versions_sorted, \%data );
 
-				# send it to GD!
-				$self->make_gdgraph(	'Bench_' . $loop,
-							[ sort keys %data ],
-							\@data_for_gd,
+				# Actually make the table!
+				$self->make_table(	"Loop Performance",
+							$loop,
 							$assert,
 							$xsqueue,
+							$self->{'imager'}->poe_versions_sorted,
+							\%data,
 				);
 			}
 		}
@@ -165,7 +165,7 @@ sub generate_loopwars {
 	my $self = shift;
 
 	if ( ! $self->{'imager'}->quiet ) {
-		print "[BasicStatistics] Generating the LoopWars graphs...\n";
+		print "[BenchmarkOutput] Generating the LoopWars tables...\n";
 	}
 
 	# go through all the metrics we want
@@ -196,19 +196,8 @@ sub generate_loopwars {
 					}
 				}
 
-				# transform %data into something GD likes
-				my @data_for_gd;
-				foreach my $m ( sort keys %data ) {
-					push( @data_for_gd, $data{ $m } );
-				}
-
-				# send it to GD!
-				$self->make_gdgraph(	"LoopWar_$metric",
-							[ sort keys %{ $self->{'imager'}->poe_loops } ],
-							\@data_for_gd,
-							$assert,
-							$xsqueue,
-				);
+				# Actually make the table!
+				$self->make_loopwar_table( $metric, $assert, $xsqueue, $self->{'imager'}->poe_versions_sorted, \%data );
 			}
 		}
 	}
@@ -216,81 +205,81 @@ sub generate_loopwars {
 	return;
 }
 
-sub make_gdgraph {
-	my $self = shift;
-	my $metric = shift;
-	my $legend = shift;
-	my $data = shift;
-	my $assert = shift;
-	my $xsqueue = shift;
+sub make_loopwar_table {
+	my( $self, $metric, $assert, $xsqueue, $poeversions, $data ) = @_;
+	my $metric_sorting = metricSorting( $metric );
 
-	# build the title
-	my $title = $metric;
-	if ( defined $assert ) {
-		$title .= ' (';
-		if ( defined $xsqueue ) {
-			$title .= $assert . ' ' . $xsqueue;
-		} else {
-			$title .= $assert;
-		}
-		$title .= ')';
+	# Start the text with a header
+	my $text = " LoopWars - Metric ( $metric/sec ) ";
+
+	if ( $assert eq 'assert' ) {
+		$text .= "ASSERT ";
 	} else {
-		if ( defined $xsqueue ) {
-			$title .= ' (' . $xsqueue . ')';
-		}
+		$text .= "NO-ASSERT ";
 	}
 
-	# Get the graph object
-	my $graph = new GD::Graph::lines( 800, 600 );
+	if ( $xsqueue eq 'xsqueue' ) {
+		$text .= "XSQUEUE";
+	} else {
+		$text .= "NO-XSQUEUE";
+	}
 
-	# Set some stuff
-	$graph->set(
-		'title'			=> $title,
-		'line_width'		=> 1,
-		'boxclr'		=> 'black',
-		'overwrite'		=> 0,
-		'x_labels_vertical'	=> 1,
-		'x_all_ticks'		=> 1,
-		'legend_placement'	=> 'BL',
-		'y_label'		=> 'iterations/sec',
-		'transparent'		=> 0,
-		'long_ticks'		=> 1,
-	) or die $graph->error;
+	$text .= "\n\n";
 
-	# Set the legend
-	$graph->set_legend( @$legend );
+	# Create the grid
+	my @loops = sort keys %$data;
+	my $tbl = Text::Table->new(
+		# The POE version column
+		{ title => "POE Version", align => 'center', align_title => 'center' },
 
-	# Set Font stuff
-	$graph->set_legend_font( GD::gdMediumBoldFont );
-	$graph->set_x_axis_font( GD::gdMediumBoldFont );
-	$graph->set_y_axis_font( GD::gdMediumBoldFont );
-	$graph->set_y_label_font( GD::gdMediumBoldFont );
-	$graph->set_title_font( GD::gdGiantFont );
+		# The vertical separator
+		\' | ',
 
-	# set the line colors
-	# I don't like what this results in...
-	$graph->set( 'dclrs' => [ grep { $_ ne 'black' and $_ ne 'white' and substr( $_, 0, 1 ) eq 'd' } sorted_colour_list() ] );
+		# The rest of the columns
+		map { \' | ', { title => $_, align => 'center', align_title => 'center' } } @loops
+	);
 
-	# Manufacture the data
-	my $readydata = [
-		[ map { 'POE-' . $_ } @{ $self->{'imager'}->poe_versions_sorted } ],
-		@$data,
-	];
+	# Fill in the data!
+	foreach my $i ( 0 .. ( scalar @$poeversions - 1 ) ) {
+		my @tmp = ( $poeversions->[ $i ] );
 
-	# Plot it!
-	$graph->plot( $readydata ) or die $graph->error;
+		# put << 234 >> around cells that are the "winner" of that metric
+		my $best = undef;
+		foreach my $l ( 0 .. ( scalar @loops - 1 ) ) {
+			if ( ! defined $best ) {
+				$best = $l;
+			} else {
+				# What is the sort order?
+				if ( $metric_sorting eq 'B' ) {
+					if ( $data->{ $loops[ $l ] }->[ $i ] > $data->{ $loops[ $best ] }->[ $i ] ) {
+						$best = $l;
+					}
+				} elsif ( $metric_sorting eq 'S' ) {
+					if ( $data->{ $loops[ $l ] }->[ $i ] < $data->{ $loops[ $best ] }->[ $i ] ) {
+						$best = $l;
+					}
+				} else {
+					die "Unknown metric sorting method: $metric_sorting";
+				}
+			}
 
-	# Print it!
-	my $filename = File::Spec->catfile( $self->{'opts'}->{'dir'}, $metric . '_' .
-		( $self->{'imager'}->litetests ? 'lite' : 'heavy' ) .
-		( defined $xsqueue ? '_' . $assert . '_' . $xsqueue : '' ) .
-		'.png' );
-	open( my $fh, '>', $filename ) or die 'Cannot open graph file!';
-	binmode( $fh );
-	print $fh $graph->gd->png();
-	close( $fh );
+			push( @tmp, $data->{ $loops[ $l ] }->[ $i ] );
+		}
 
-	return;
+		# We found the best one...
+		$tmp[ $best + 1 ] = "<< " . $tmp[ $best + 1 ] . " >>";
+
+		$tbl->add( @tmp );
+	}
+
+	# Get the table, insert the horizontal divider, then print it out!
+	$text .= $tbl->table( 0 );
+	$text .= $tbl->rule( '-' );
+	$text .= $tbl->table( 1, $tbl->n_cols() - 1 );
+	$text .= $tbl->rule( '-' );
+
+	# All done!
+	print $text;
 }
 
 1;
@@ -300,47 +289,47 @@ __END__
 
 =head1 NAME
 
-POE::Devel::Benchmarker::Imager::BasicStatistics - Plugin to generate basic statistics graphs
+POE::Devel::Benchmarker::Imager::BenchmarkOutput - Plugin to generate output similar to Benchmark.pm
 
 =head1 SYNOPSIS
 
 	use POE::Devel::Benchmarker::Imager;
-	imager( { type => 'BasicStatistics' } );
+	imager( { type => 'BenchmarkOutput' } );
 
 =head1 ABSTRACT
 
-This plugin for Imager generates some kinds of graphs from the benchmark tests.
+This plugin for Imager generates Benchmark.pm-alike output from the benchmark tests.
 
 =head1 DESCRIPTION
 
-This package generates some basic graphs from the statistics output. Since the POE::Loop::* modules really are responsible
-for the backend logic of POE, it makes sense to graph all related metrics of a single loop across POE versions to see if
+This package generates some basic text tables from the statistics output. Since the POE::Loop::* modules really are responsible
+for the backend logic of POE, it makes sense to measure all related metrics of a single loop across POE versions to see if
 it performs differently.
 
 	apoc@apoc-x300:~$ cd poe-benchmarker
-	apoc@apoc-x300:~/poe-benchmarker$ perl -MPOE::Devel::Benchmarker::Imager -e 'imager( { type => "BasicStatistics" } )'
+	apoc@apoc-x300:~/poe-benchmarker$ perl -MPOE::Devel::Benchmarker::Imager -e 'imager( { type => "BenchmarkOutput" } )'
 
-This will generate some types of graphs:
+This will generate some types of tables:
 
 =over 4
 
 =item Loops against each other
 
-Each metric will have a picture for itself, showing how each loop compare against each other with the POE versions.
+Each metric will have a table for itself, showing how each loop compare against each other with the POE versions.
 
-file: BasicStatistics/LoopWar_$metric_$lite_$assert_$xsqueue.png
+file: BenchmarkOutput/LoopWar_$metric_$lite_$assert_$xsqueue.txt
 
 =item Single Loop over POE versions
 
-Each Loop will have a picture for itself, showing how each metric performs over POE versions.
+Each Loop will have a table for itself, showing how each metric performs over POE versions.
 
-file: BasicStatistics/Bench_$loop_$lite_$assert_$xsqueue.png
+file: BenchmarkOutput/Bench_$loop_$lite_$assert_$xsqueue.txt
 
 =item Single Loop over POE versions with assert/xsqueue
 
-Each Loop will have a picture for itself, showing how each metric is affected by the assert/xsqueue options.
+Each Loop will have a table for itself, showing how each metric is affected by the assert/xsqueue options.
 
-file: BasicStatistics/Options_$loop_$metric_$lite.png
+file: BenchmarkOutput/Options_$loop_$metric_$lite.txt
 
 =back
 

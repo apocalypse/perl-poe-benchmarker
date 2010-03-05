@@ -16,13 +16,16 @@ use version;
 use YAML::Tiny qw( Dump );
 use File::Spec;
 
+# to silence Perl::Critic - # Three-argument form of open used at line 541, column 3.  Three-argument open is not available until perl 5.6.  (Severity: 5)
+use 5.008;
+
 # Import what we need from the POE namespace
 use POE qw( Session Filter::Line Wheel::Run );
 use base 'POE::Session::AttributeBased';
 
 # Load our stuff
 use POE::Devel::Benchmarker::GetInstalledLoops;
-use POE::Devel::Benchmarker::Utils qw( poeloop2load knownloops generateTestfile beautify_times currentTestVersion );
+use POE::Devel::Benchmarker::Utils qw( poeloop2load poeloop2dist knownloops generateTestfile beautify_times currentTestVersion );
 
 # Actually run the tests!
 sub benchmark {
@@ -39,6 +42,8 @@ sub benchmark {
 
 	# process our options
 	if ( defined $options and ref $options and ref( $options ) eq 'HASH' ) {
+		## no critic ( ProhibitAccessOfPrivateData )
+
 		# process YES for freshstart
 		if ( exists $options->{'freshstart'} ) {
 			if ( $options->{'freshstart'} ) {
@@ -268,7 +273,7 @@ sub found_loops : State {
 
 	# sanity check
 	if ( scalar @{ $_[HEAP]->{'installed_loops'} } == 0 ) {
-		print "[BENCHMARKER] Detected no available POE::Loop, check your configuration?!?\n";
+		print "[BENCHMARKER] Detected no available POE::Loop dists, check your configuration?!?\n";
 		return;
 	}
 
@@ -391,6 +396,8 @@ sub bench_checkprevioustest : State {
 				# inrospect it!
 				my $isvalid = 0;
 				eval {
+					## no critic ( ProhibitAccessOfPrivateData )
+
 					# simple sanity check: the "x_bench" param is at the end of the YML, so if it loads fine we know it's there
 					if ( exists $yaml->[0]->{'x_bench'} ) {
 						# version must at least match us
@@ -438,12 +445,23 @@ sub create_subprocess : State {
 		print "\n Testing " . generateTestfile( $_[HEAP] ) . "...";
 	}
 
+	# POE in 1.001 added POE_EVENT_LOOP env var, yay!
+	my $looploader;
+	if ( $_[HEAP]->{'current_version'} >= 1.001 ) {
+		$looploader = poeloop2dist( $_[HEAP]->{'current_loop'} );
+	} else {
+		# Add the eventloop?
+		$looploader = poeloop2load( $_[HEAP]->{'current_loop'} );
+	}
+
+	local $ENV{POE_EVENT_LOOP} = $looploader if defined $looploader and $looploader =~ /^POE::/;
+	undef $looploader if defined $looploader and $looploader =~ /^POE::/;
+
 	# save the starttime
 	$_[HEAP]->{'current_starttime'} = time();
 	$_[HEAP]->{'current_starttimes'} = [ times() ];
 
 	# Okay, create the wheel::run to handle this
-	my $looploader = poeloop2load( $_[HEAP]->{'current_loop'} );
 	$_[HEAP]->{'WHEEL'} = POE::Wheel::Run->new(
 		'Program'	=>	$^X,
 		'ProgramArgs'	=>	[	'-Ipoedists/POE-' . $_[HEAP]->{'current_version'},
@@ -596,7 +614,7 @@ sub wrapup_test : State {
 	$_[KERNEL]->yield( 'analyze_output', {
 		'poe'		=> {
 			'v'	=> $_[HEAP]->{'current_version'}->stringify,	# YAML::Tiny doesn't like version objects :(
-			'loop'	=> 'POE::Loop::' . $_[HEAP]->{'current_loop'},
+			'loop'	=> $_[HEAP]->{'current_loop'},
 		},
 		't'		=> {
 			's_ts'	=> $_[HEAP]->{'current_starttime'},
@@ -623,6 +641,8 @@ sub wrapup_test : State {
 sub analyze_output : State {
 	# get the data
 	my $test = $_[ARG0];
+
+	## no critic ( ProhibitAccessOfPrivateData )
 
 	# clean up the times() stuff
 	$test->{'t'}->{'t'} = beautify_times(
@@ -794,9 +814,9 @@ sub analyze_output : State {
 
 		# The loop we loaded should match what we wanted!
 		if ( exists $test->{'poe'}->{'modules'} ) {
-			if ( ! exists $test->{'poe'}->{'modules'}->{ $test->{'poe'}->{'loop'} } ) {
+			if ( ! exists $test->{'poe'}->{'modules'}->{ poeloop2dist( $test->{'poe'}->{'loop'} ) } ) {
 				# gaah special-case for IO_Poll ( POE 0.21 to POE 0.29 introduced POE::Loop::Poll which later became POE::Loop::IO_Poll )
-				if ( $test->{'poe'}->{'loop'} eq 'POE::Loop::IO_Poll' and exists $test->{'poe'}->{'modules'}->{'POE::Loop::Poll'} ) {
+				if ( $test->{'poe'}->{'loop'} eq 'IO_Poll' and exists $test->{'poe'}->{'modules'}->{'POE::Loop::Poll'} ) {
 					# ah, ignore this
 				} else {
 					print "\n[ANALYZER] The subprocess loaded a different Loop than we thought -> $yaml_file\n";
@@ -813,6 +833,11 @@ sub analyze_output : State {
 		if ( $test->{'perl'}->{'v'} ne sprintf( "%vd", $^V ) ) {
 			print "\n[ANALYZER] The subprocess booted up on a different perl version -> $yaml_file\n";
 		}
+	}
+
+	# Did we successfully run the entire testsuite?
+	if ( ! exists $test->{'pid'} ) {
+		print "\n[ANALYZER] The testsuite failed to run to completion -> $yaml_file\n";
 	}
 
 	# all done!
@@ -1087,23 +1112,17 @@ It would be nice if we could have a local SQLite db to dump our stats into. This
 loading raw YAML files and trying to make sense of them, ha! Also, this means somebody can do the smoking and send the SQLite
 db to another person to generate the graphs, cool!
 
-=item Kqueue loop support
-
-As I don't have access to a *BSD box, I cannot really test this. Furthermore, it isn't clear on how I can force/unload this
-module from POE...
-
 =item Wx loop support
 
-I have Wx installed, but it doesn't work. Obviously I don't know how to use Wx ;)
-
-If you have experience, please drop me a line on how to do the "right" thing to get Wx loaded under POE. Here's the error:
+I have Wx installed, but it doesn't work. I suspect the module is broken... Here's the error:
 
 	Can't call method "MainLoop" on an undefined value at /usr/local/share/perl/5.8.8/POE/Loop/Wx.pm line 91.
 
-=item XS::Loop support
+=item Multiple run support
 
-The POE::XS::Loop::* modules theoretically could be tested too. However, they will only work in POE >= 1.003! This renders
-the concept somewhat moot. Maybe, after POE has progressed some versions we can implement this...
+I would like the benchmarker to run the testsuite N times, and summing up the data into an average so we have more sane data...
+
+<dngor> Apocalypse: You could start with 5 runs, then continue running until the standard deviation reaches some sane level?
 
 =back
 
@@ -1121,6 +1140,10 @@ You can find documentation for this module with the perldoc command.
 
 =over 4
 
+=item * Search CPAN
+
+L<http://search.cpan.org/dist/POE-Devel-Benchmarker>
+
 =item * AnnoCPAN: Annotated CPAN documentation
 
 L<http://annocpan.org/dist/POE-Devel-Benchmarker>
@@ -1129,17 +1152,33 @@ L<http://annocpan.org/dist/POE-Devel-Benchmarker>
 
 L<http://cpanratings.perl.org/d/POE-Devel-Benchmarker>
 
+=item * CPAN Forum
+
+L<http://cpanforum.com/dist/POE-Devel-Benchmarker>
+
 =item * RT: CPAN's request tracker
 
 L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=POE-Devel-Benchmarker>
 
-=item * Search CPAN
-
-L<http://search.cpan.org/dist/POE-Devel-Benchmarker>
-
-=item * CPAN Testing Service
+=item * CPANTS Kwalitee
 
 L<http://cpants.perl.org/dist/overview/POE-Devel-Benchmarker>
+
+=item * CPAN Testers Results
+
+L<http://cpantesters.org/distro/P/POE-Devel-Benchmarker.html>
+
+=item * CPAN Testers Matrix
+
+L<http://matrix.cpantesters.org/?dist=POE-Devel-Benchmarker>
+
+=item * Git Source Code Repository
+
+This code is currently hosted on github.com under the account "apocalypse". Please feel free to browse it
+and pull from it, or whatever. If you want to contribute patches, please send me a diff or prod me to pull
+from your repository :)
+
+L<http://github.com/apocalypse/perl-poe-benchmarker>
 
 =back
 
@@ -1161,5 +1200,7 @@ Copyright 2010 by Apocalypse
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
+
+The full text of the license can be found in the LICENSE file included with this module.
 
 =cut
