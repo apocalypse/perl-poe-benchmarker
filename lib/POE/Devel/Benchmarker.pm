@@ -1124,6 +1124,15 @@ I would like the benchmarker to run the testsuite N times, and summing up the da
 
 <dngor> Apocalypse: You could start with 5 runs, then continue running until the standard deviation reaches some sane level?
 
+=item Event loop support
+
+<Apocalypse> ascent_: Yeah, but unfortunately trying to use Loop::Event here with latest POE blows up :(
+<Apocalypse> apoc@blackhole:~$ POE_EVENT_LOOP="Event" perl -MPOE -e 1
+<Apocalypse> Can't locate object method "timer" via package "Event" at /usr/local/share/perl/5.10.0/POE/Loop/Event.pm line 47.
+<Apocalypse> Event.pm 1.13, POE::Loop::Event 1.302, POE 1.287
+<Apocalypse> ascent_: Patches welcome :)
+<ascent_> Apocalypse: POE_EVENT_LOOP="Event" perl -MEvent -MPOE -e 1  <- works fine... so patch is one-liner: use Event; ;)
+
 =back
 
 =head1 SEE ALSO

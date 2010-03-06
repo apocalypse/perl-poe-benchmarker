@@ -26,7 +26,7 @@ sub new {
 	return bless $self, $class;
 }
 
-# actually generates the graphs!
+# actually generates the tables!
 sub imager {
 	my $self = shift;
 	$self->{'imager'} = shift;
@@ -35,7 +35,7 @@ sub imager {
 	$self->generate_loopwars;
 
 	# generate the single loop performance
-	#$self->generate_loopperf;
+	$self->generate_loopperf;
 
 	# generate the loop assert/xsqueue ( 4 lines ) per metric
 	#$self->generate_loopoptions;
@@ -116,6 +116,9 @@ sub generate_loopperf {
 
 	# go through all the loops we want
 	foreach my $loop ( keys %{ $self->{'imager'}->poe_loops } ) {
+		# The entire document...
+		my $text;
+
 		# go through the combo of assert/xsqueue
 		foreach my $assert ( qw( assert noassert ) ) {
 			if ( ! exists $self->{'imager'}->data->{ $assert } ) {
@@ -142,22 +145,101 @@ sub generate_loopperf {
 					}
 				}
 
-				use Data::Dumper;
-				print Dumper( $loop, $self->{'imager'}->poe_versions_sorted, \%data );
-
 				# Actually make the table!
-				$self->make_table(	"Loop Performance",
-							$loop,
-							$assert,
-							$xsqueue,
-							$self->{'imager'}->poe_versions_sorted,
-							\%data,
-				);
+				$text .= $self->make_loopperf_table( $loop, $assert, $xsqueue, $self->{'imager'}->poe_versions_sorted, \%data );
 			}
 		}
+
+		# Save it!
+		my $filename = File::Spec->catfile( $self->{'opts'}->{'dir'}, 'Benchmark_' . $loop . '.txt' );
+		open( my $fh, '>', $filename ) or die "Cannot open output file: $!";
+		print $fh $text;
+		close( $fh ) or die "Unable to close output file: $!";
 	}
 
 	return;
+}
+
+sub make_loopperf_table {
+	my( $self, $loop, $assert, $xsqueue, $poeversions, $data ) = @_;
+
+	# Start the text with a header
+	my $text = "\tLoop Benchmarking ( $loop ) ";
+
+	if ( $assert eq 'assert' ) {
+		$text .= "ASSERT ";
+	} else {
+		$text .= "NO-ASSERT ";
+	}
+
+	if ( $xsqueue eq 'xsqueue' ) {
+		$text .= "XSQUEUE";
+	} else {
+		$text .= "NO-XSQUEUE";
+	}
+
+	$text .= "\n\n";
+
+	# Create the grid
+	my @metrics = sort keys %$data;
+	my $tbl = Text::Table->new(
+		# The POE version column
+		{ title => "POE Version", align => 'center', align_title => 'center' },
+
+		# The vertical separator
+		\' | ',
+
+		# The rest of the columns
+		map { \' | ', { title => $_, align => 'center', align_title => 'center' } } @metrics
+	);
+
+	# put << 234 >> around cells that are the "winner" of that metric
+	foreach my $m ( keys %$data ) {
+		my $best = undef;
+		my $metric_sorting = metricSorting( $m );
+		foreach my $i ( 0 .. ( scalar @{ $data->{ $m } } - 1 ) ) {
+			if ( ! defined $best ) {
+				$best = $i;
+			} else {
+				# What is the sort order?
+				if ( $metric_sorting eq 'B' ) {
+					if ( $data->{ $m }->[ $i ] > $data->{ $m }->[ $best ] ) {
+						$best = $i;
+					}
+				} elsif ( $metric_sorting eq 'S' ) {
+					if ( $data->{ $m }->[ $i ] < $data->{ $m }->[ $best ] ) {
+						$best = $i;
+					}
+				} else {
+					die "Unknown metric sorting method: $metric_sorting";
+				}
+			}
+		}
+
+		# We found the best one...
+		$data->{ $m }->[ $best ] = "<< " . $data->{ $m }->[ $best ] . " >>";
+	}
+
+	# Fill in the data!
+	foreach my $i ( 0 .. ( scalar @$poeversions - 1 ) ) {
+		my @tmp = ( $poeversions->[ $i ] );
+
+		foreach my $l ( 0 .. ( scalar @metrics - 1 ) ) {
+			push( @tmp, $data->{ $metrics[ $l ] }->[ $i ] );
+		}
+
+		$tbl->add( @tmp );
+	}
+
+	# Get the table, insert the horizontal divider, then print it out!
+	$text .= $tbl->table( 0 );
+	$text .= $tbl->rule( '-' );
+	$text .= $tbl->table( 1, $tbl->n_cols() - 1 );
+	$text .= $tbl->rule( '-' );
+	$text .= "\n\n";
+
+	# All done!
+	return $text;
 }
 
 # loop wars!
@@ -167,6 +249,9 @@ sub generate_loopwars {
 	if ( ! $self->{'imager'}->quiet ) {
 		print "[BenchmarkOutput] Generating the LoopWars tables...\n";
 	}
+
+	# The entire document...
+	my $text;
 
 	# go through all the metrics we want
 	foreach my $metric ( @{ currentMetrics() } ) {
@@ -197,10 +282,16 @@ sub generate_loopwars {
 				}
 
 				# Actually make the table!
-				$self->make_loopwar_table( $metric, $assert, $xsqueue, $self->{'imager'}->poe_versions_sorted, \%data );
+				$text .= $self->make_loopwar_table( $metric, $assert, $xsqueue, $self->{'imager'}->poe_versions_sorted, \%data );
 			}
 		}
 	}
+
+	# Save it!
+	my $filename = File::Spec->catfile( $self->{'opts'}->{'dir'}, 'LoopWars.txt' );
+	open( my $fh, '>', $filename ) or die "Cannot open output file: $!";
+	print $fh $text;
+	close( $fh ) or die "Unable to close output file: $!";
 
 	return;
 }
@@ -210,7 +301,7 @@ sub make_loopwar_table {
 	my $metric_sorting = metricSorting( $metric );
 
 	# Start the text with a header
-	my $text = " LoopWars - Metric ( $metric/sec ) ";
+	my $text = "\tLoopWars - Metric ( $metric/sec ) ";
 
 	if ( $assert eq 'assert' ) {
 		$text .= "ASSERT ";
@@ -277,9 +368,10 @@ sub make_loopwar_table {
 	$text .= $tbl->rule( '-' );
 	$text .= $tbl->table( 1, $tbl->n_cols() - 1 );
 	$text .= $tbl->rule( '-' );
+	$text .= "\n\n";
 
 	# All done!
-	print $text;
+	return $text;
 }
 
 1;
@@ -317,19 +409,19 @@ This will generate some types of tables:
 
 Each metric will have a table for itself, showing how each loop compare against each other with the POE versions.
 
-file: BenchmarkOutput/LoopWar_$metric_$lite_$assert_$xsqueue.txt
+file: BenchmarkOutput/LoopWars.txt
 
 =item Single Loop over POE versions
 
 Each Loop will have a table for itself, showing how each metric performs over POE versions.
 
-file: BenchmarkOutput/Bench_$loop_$lite_$assert_$xsqueue.txt
+file: BenchmarkOutput/Bench_$loop.txt
 
 =item Single Loop over POE versions with assert/xsqueue
 
 Each Loop will have a table for itself, showing how each metric is affected by the assert/xsqueue options.
 
-file: BenchmarkOutput/Options_$loop_$metric_$lite.txt
+file: BenchmarkOutput/Options_$loop.txt
 
 =back
 

@@ -285,10 +285,10 @@ sub make_gdgraph {
 		( $self->{'imager'}->litetests ? 'lite' : 'heavy' ) .
 		( defined $xsqueue ? '_' . $assert . '_' . $xsqueue : '' ) .
 		'.png' );
-	open( my $fh, '>', $filename ) or die 'Cannot open graph file!';
+	open( my $fh, '>', $filename ) or die "Cannot open graph file: $!";
 	binmode( $fh );
 	print $fh $graph->gd->png();
-	close( $fh );
+	close( $fh ) or die "Unable to close graph file: $!";
 
 	return;
 }
