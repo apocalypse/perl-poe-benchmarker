@@ -15,6 +15,7 @@ lib/POE/Devel/Benchmarker/SubProcess.pm
 lib/POE/Devel/Benchmarker/Utils.pm
 lib/POE/Devel/Benchmarker/Imager.pm
 lib/POE/Devel/Benchmarker/Imager/BasicStatistics.pm
+lib/POE/Devel/Benchmarker/Imager/BenchmarkOutput.pm
 
 examples/test.pl
 

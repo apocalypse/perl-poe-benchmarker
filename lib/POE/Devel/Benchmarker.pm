@@ -1124,14 +1124,23 @@ I would like the benchmarker to run the testsuite N times, and summing up the da
 
 <dngor> Apocalypse: You could start with 5 runs, then continue running until the standard deviation reaches some sane level?
 
-=item Event loop support
+dngor also mentioned something about running 7 times, and removing the highest+lowest benchs...
 
-<Apocalypse> ascent_: Yeah, but unfortunately trying to use Loop::Event here with latest POE blows up :(
-<Apocalypse> apoc@blackhole:~$ POE_EVENT_LOOP="Event" perl -MPOE -e 1
-<Apocalypse> Can't locate object method "timer" via package "Event" at /usr/local/share/perl/5.10.0/POE/Loop/Event.pm line 47.
-<Apocalypse> Event.pm 1.13, POE::Loop::Event 1.302, POE 1.287
-<Apocalypse> ascent_: Patches welcome :)
-<ascent_> Apocalypse: POE_EVENT_LOOP="Event" perl -MEvent -MPOE -e 1  <- works fine... so patch is one-liner: use Event; ;)
+=item Queue benchmarking
+
+<Apocalypse> Allright, if you have the time could you please look at the benchmark "metrics" and let me know if I could add more metrics regarding the queue - I believe your POD stated that it could choke on excessively large queues?
+<@TonyC> one problem with the queue is that anything that uses a filter can make multiple callbacks into perl functions, and I suspect that's slower than perl's entersub
+<Apocalypse> filter? Sorry if I'm not that expert with XS stuff :(
+<@TonyC> the queue (XS or non-XS) remove method (for example) take a filter callback, that needs to be called for any candidate for removal
+<@TonyC> urr remove_items()
+<Apocalypse> TonyC: Aha, looking at the POE::Queue I understand what you mean
+<Apocalypse> I'll add that to my todo and see if I can't whip up a bench for that :)
+<@TonyC> I guess a sort of real test would be to run the queue test script
+<Apocalypse> Where is that script?
+<@TonyC> in the POE distribution, in the POE::XS::Queue::Array distribution
+<@TonyC> I think the XS one is slightly modified - me looks
+<@TonyC> looks like the core POE version has also been modified
+<@TonyC> t/10_units/06_queues/01_array.t if you're wondering
 
 =back
 
